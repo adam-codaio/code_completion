@@ -10,4 +10,8 @@ tar xzvf js_dataset.tar.gz -C data
 mv js_dataset.tar.gz data/
 cd data
 tar xzvf data.tar.gz
+
+//Splits the eval set into an eval and dev set
+cd utils
+python eval_split.py
 ```
