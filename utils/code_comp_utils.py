@@ -103,6 +103,12 @@ class CodeCompleter(object):
     def create_instances(self, examples):
         return examples
 
+
+    def extract_features(self, example):
+        # There is where a lot of heavy lifting is going to happen
+        # called from create_instances
+        pass
+
 def read_data(infile, reduced=False, num_examples=None):
     examples = []
  
@@ -139,7 +145,6 @@ def load_and_preprocess_data(reduced=True):
     print "Vectorizing data...",
     start = time.time()
     train_set = code_comp.vectorize(train_set)
-    print train_set
     dev_set = code_comp.vectorize(dev_set)
     test_set = code_comp.vectorize(test_set)
     print "took {:.2f} seconds".format(time.time() - start)
