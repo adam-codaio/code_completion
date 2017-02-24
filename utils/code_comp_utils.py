@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from tree_utils import ast_to_lcrs
 
 """
 Largely inspired by code from cs224n PSET 2 for the 
@@ -110,12 +111,16 @@ class CodeCompleter(object):
         pass
 
 def read_data(infile, reduced=False, num_examples=None):
+    '''
+    This reads in the asts from the file and converts them to binary trees.
+    '''
     examples = []
  
     with open(infile) as f:
         for line in f:
             data = json.loads(line)
-            examples.append(data)
+            binarized = ast_to_lcrs(data)
+            examples.append(binarized)
             if reduced:
                 num_examples -= 1
                 if num_examples == 0:
