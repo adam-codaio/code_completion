@@ -61,10 +61,10 @@ class LSTMCell(tf.nn.rnn_cell.RNNCell):
         """
         scope = scope or type(self).__name__
 
-        # It's always a good idea to scope variables in functions lest they
-        # be defined elsewhere!
         with tf.variable_scope(scope):
-            ### YOUR CODE HERE (~20-30 lines)
+
+            c_t0, h_t0 = state
+            
             xinit = tf.contrib.layers.xavier_initializer()
             W_i = tf.get_variable("W_i", shape=[self.input_size, self._state_size], initializer=xinit)
             U_i = tf.get_variable("U_i", shape=[self._state_size, self._state_size], initializer=xinit)
@@ -82,76 +82,15 @@ class LSTMCell(tf.nn.rnn_cell.RNNCell):
             U_u = tf.get_variable("U_u", shape=[self.input_size, self._state_size], initializer=xinit)
             b_u = tf.get_variable("b_u", shape=[self._state_size], initializer=tf.constant_initializer(0.0))
        
-	        i_t = tf.sigmoid(tf.matmul(inputs,W_i) + tf.matmul(state, U_i) + b_i)
-            f_t = tf.sigmoid(tf.matmul(inputs,W_f) + tf.matmul(state, U_f) + b_f)
-            o_t = tf.sigmoid(tf.matmul(inputs,W_o) + tf.matmul(state, U_o) + b_o)
-	        u_t = tf.tanh(tf.matmul(inputs,W_u) + tf.matmul(state, W_u) + b_o)
+            i_t = tf.sigmoid(tf.matmul(inputs,W_i) + tf.matmul(h_t0, U_i) + b_i)
+            f_t = tf.sigmoid(tf.matmul(inputs,W_f) + tf.matmul(h_t0, U_f) + b_f)
+            o_t = tf.sigmoid(tf.matmul(inputs,W_o) + tf.matmul(h_t0, U_o) + b_o)
+            u_t = tf.tanh(tf.matmul(inputs,W_u) + tf.matmul(h_t0, U_u) + b_u)
 
-            new_state = z_t * state + (1-z_t) * o_t
-            ### END YOUR CODE ###
-        # For a GRU, the output and state are the same (N.B. this isn't true
-        # for an LSTM, though we aren't using one of those in our
-        # assignment)
-        output = new_state
+            c_t = i_t*u_t + f_t*c_t0
+
+            h_t = o_t * tf.tanh(c_t)
+
+        output = h_t
+        new_state = (c_t, h_t)
         return output, new_state
-
-def test_gru_cell():
-    with tf.Graph().as_default():
-        with tf.variable_scope("test_gru_cell"):
-            x_placeholder = tf.placeholder(tf.float32, shape=(None,3))
-            h_placeholder = tf.placeholder(tf.float32, shape=(None,2))
-
-            with tf.variable_scope("gru"):
-                tf.get_variable("U_r", initializer=np.array(np.eye(3,2), dtype=np.float32))
-                tf.get_variable("W_r", initializer=np.array(np.eye(2,2), dtype=np.float32))
-                tf.get_variable("b_r",  initializer=np.array(np.ones(2), dtype=np.float32))
-                tf.get_variable("U_z", initializer=np.array(np.eye(3,2), dtype=np.float32))
-                tf.get_variable("W_z", initializer=np.array(np.eye(2,2), dtype=np.float32))
-                tf.get_variable("b_z",  initializer=np.array(np.ones(2), dtype=np.float32))
-                tf.get_variable("U_o", initializer=np.array(np.eye(3,2), dtype=np.float32))
-                tf.get_variable("W_o", initializer=np.array(np.eye(2,2), dtype=np.float32))
-                tf.get_variable("b_o",  initializer=np.array(np.ones(2), dtype=np.float32))
-
-            tf.get_variable_scope().reuse_variables()
-            cell = GRUCell(3, 2)
-            y_var, ht_var = cell(x_placeholder, h_placeholder, scope="gru")
-
-            init = tf.global_variables_initializer()
-            with tf.Session() as session:
-                session.run(init)
-                x = np.array([
-                    [0.4, 0.5, 0.6],
-                    [0.3, -0.2, -0.1]], dtype=np.float32)
-                h = np.array([
-                    [0.2, 0.5],
-                    [-0.3, -0.3]], dtype=np.float32)
-                y = np.array([
-                    [ 0.320, 0.555],
-                    [-0.006, 0.020]], dtype=np.float32)
-                ht = y
-
-                y_, ht_ = session.run([y_var, ht_var], feed_dict={x_placeholder: x, h_placeholder: h})
-                print("y_ = " + str(y_))
-                print("ht_ = " + str(ht_))
-
-                assert np.allclose(y_, ht_), "output and state should be equal."
-                assert np.allclose(ht, ht_, atol=1e-2), "new state vector does not seem to be correct."
-
-def do_test(_):
-    logger.info("Testing gru_cell")
-    test_gru_cell()
-    logger.info("Passed!")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Tests the GRU cell implemented as part of Q3 of Homework 3')
-    subparsers = parser.add_subparsers()
-
-    command_parser = subparsers.add_parser('test', help='')
-    command_parser.set_defaults(func=do_test)
-
-    ARGS = parser.parse_args()
-    if ARGS.func is None:
-        parser.print_help()
-        sys.exit(1)
-    else:
-        ARGS.func(ARGS)
