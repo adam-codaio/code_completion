@@ -1,11 +1,10 @@
-import tree_utils
 
-def treeTraversal(root):
+def tree_traversal(root):
 	arr = []
 	terminal_map = {}
 	non_terminal_map = {}
-	tokenList = inorder(None, root, arr, terminal_map, non_terminal_map)
-	return tokenList
+	token_list = inorder(None, root, arr, terminal_map, non_terminal_map)
+	return token_list, terminal_map, non_terminal_map
 
 
 def convert_to_token(parent, node, terminal_map, non_terminal_map):	
@@ -47,17 +46,3 @@ def inorder(parent, node, arr, terminal_map, non_terminal_map):
 
 	inorder(node, node.right_child, arr, terminal_map, non_terminal_map) #right child
 	return arr
-
-def test():
-	with open('../../data/programs_training.json', 'r') as f:
-		for line in f:
-			import json
-			data = json.loads(line)
-			print data
-			break	
-	
-	tree = tree_utils.ast_to_lcrs(data)
-	arr = treeTraversal(tree.root)
-	print arr
-
-test()
