@@ -55,7 +55,22 @@ def ast_to_lcrs(ast):
 
 def tree_traversal(root):
     token_list = []
-    inorder(None, root, token_list)
+
+    stack = []
+    curr = root
+    while True:
+        while curr is not None:
+            stack.append(curr)
+            curr = curr.left_child
+        if len(stack) > 0:
+            elem = stack.pop()
+            parent = stack[-1] if len(stack) > 1 else None
+            token = convert_to_token(parent, elem)
+            token_list.append(token)
+            curr = elem.right_child
+        else:
+            break
+
     return token_list
 
 def convert_to_token(parent, node):
@@ -76,15 +91,4 @@ def convert_to_token(parent, node):
     N_i = (node.data["type"], N_i_termChild, N_i_rightSib)
     
     return (N_i, T_i)
-
-def inorder(parent, node, arr):
-    if not node:
-        return None
-
-    inorder(node, node.left_child, arr) #left child
-    
-    token = convert_to_token(parent, node)
-    arr.append(token)
-    
-    inorder(node, node.right_child, arr) #right child
 
