@@ -2,6 +2,7 @@ import json
 import os
 import time
 from tree_utils import ast_to_lcrs
+from token_mapping import tree_traversal
 
 """
 Largely inspired by code from cs224n PSET 2 for the 
@@ -120,7 +121,8 @@ def read_data(infile, reduced=False, num_examples=None):
         for line in f:
             data = json.loads(line)
             binarized = ast_to_lcrs(data)
-            examples.append(binarized)
+            token_list, terminal_map, non_terminal_map = tree_traversal(binarized)
+            examples.append(token_list)
             if reduced:
                 num_examples -= 1
                 if num_examples == 0:
