@@ -18,7 +18,7 @@ logger = logging.getLogger("hw3.q3.1")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
-class LSTMCell(tf.nn.rnn_cell.RNNCell):
+class LSTMCell(tf.nn.rnn_cell.LSTMCell):
     """Wrapper around our GRU cell implementation that allows us to play
     nicely with TensorFlow.
     """
