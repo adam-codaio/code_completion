@@ -4,7 +4,7 @@ LSTM
 from __future__ import absolute_import
 from __future__ import division
 
-from util import Progbar, minibatches
+from lstm_util import Progbar, minibatches
 from model import Model
 
 from lstm_cell import LSTMCell
@@ -18,12 +18,14 @@ from datetime import datetime
 import tensorflow as tf
 import numpy as np
 
-from util import print_sentence, write_conll, read_conll
-from data_util import load_and_preprocess_data, load_embeddings, ModelHelper
-from defs import LBLS
+from lstm_util import print_sentence, write_conll, read_conll
+from lstm_data_util import load_embeddings, ModelHelper
+from utils import code_comp_utils #import load_and_preprocess_data, CodeCompleter
+#from defs import LBLS
+from sequence_model import SequenceModel
 from lstm_cell import LSTMCell
 
-logger = logging.getLogger("hw3.q2")
+logger = logging.getLogger("vanilla_lstm")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -35,20 +37,21 @@ class Config:
     instantiation.
     """
     n_token_features = 1 # Number of features for every token in the input.
-    window_size = 1
-    n_features = (2 * window_size + 1) * n_token_features # Number of features for every word in the input.
-    max_length = 120 # longest sequence to parse
-    n_classes = 5
+    max_length = 49 # longest sequence to parse
+    non_terminal_vocab = 97
+    terminal_vocab = 50000
     dropout = 0.5
-    embed_size = 50
-    hidden_size = 300
-    batch_size = 32
+    embed_size = 1500
+    hidden_size = embed_size
+    batch_size = 80
     n_epochs = 10
-    max_grad_norm = 10.
+    max_grad_norm = 5.
     lr = 0.001
 
     def __init__(self, args):
         self.cell = args.cell
+        self.predict = args.non_terminal
+	self.clip_gradients = args.clip
 
         if "output_path" in args:
             # Where to save things.
@@ -71,26 +74,28 @@ def pad_sequences(data, max_length):
     ret = []
 
     # Use this zero vector when padding sequences.
-    zero_vector = [0] * Config.n_features
+    zero_vector = [0] * Config.n_token_features
     zero_label = 4 # corresponds to the 'O' tag
 
-    for sentence, labels in data:
-        pad = max_length - len(sentence)
+    for code_snippet, labels in data:
+        pad = max_length - len(code_snippet)
         if pad < 0:
-            ret.append((sentence[:max_length], labels[:max_length], [True] * max_length))
+            ret.append((code_snippet[:max_length], labels, [True] * max_length))
         else:
-            ret.append((sentence + [zero_vector] * pad, labels + [zero_label] * pad,
-                       [True] * len(sentence) + [False] * pad))
+            ret.append((code_snippet + zero_vector * pad, labels,
+                       [True] * len(code_snippet) + [False] * pad))
     return ret
 
-class LSTModel(Model):
+class LSTMModel(SequenceModel):
 
     def add_placeholders(self):
         """
         Generates placeholder variables to represent the input tensors
         """
-        self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_features))
-        self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))
+        #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length)#, self.config.n_token_features))
+	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+        self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float32)
 
@@ -107,10 +112,14 @@ class LSTModel(Model):
         """
         feed_dict = {}
         if inputs_batch is not None:
-            feed_dict[self.input_placeholder] = inputs_batch
+	    #non_terminal, terminal = zip(*inputs_batch)
+	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[::2]
+	    feed_dict[self.terminal_input_placeholder] = inputs_batch[1::2]
+            #feed_dict[self.input_placeholder] = inputs_batch
         if mask_batch is not None:
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
+	    labels_batch = labels_batch.flatten()
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
@@ -131,9 +140,11 @@ class LSTModel(Model):
         Returns:
             embeddings: tf.Tensor of shape (None, n_features*embed_size)
         """
-        embed_tensor = tf.Variable(self.pretrained_embeddings)
-        output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
-        embeddings = tf.reshape(output, [-1, self.max_length, self.config.n_features * self.config.embed_size])
+        #terminal_embed_tensor = tf.Variable(self.terminal_embeddings)
+        #non_terminal_embed_tensor = tf.Variable(self.non_terminal_embeddings)
+        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.embeddings, self.non_terminal_input_placeholder)
+        #output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
+        #embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
         return embeddings
 
     def add_prediction_op(self):
@@ -146,37 +157,38 @@ class LSTModel(Model):
                 y_t = o_drop_t U + b_2
 
         Returns:
-            pred: tf.Tensor of shape (batch_size, max_length, n_classes)
+            pred: tf.Tensor of shape (batch_size, max_length, non_terminal_vocab)
         """
 
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
 
-        preds = [] # Predicted output at each timestep should go here!
-
-        cell = LSTMCell(Config.n_features * Config.embed_size, Config.hidden_size)
+        cell = LSTMCell(Config.n_token_features * Config.embed_size, Config.hidden_size)
 
         # Define U and b2 as variables.
         # Initialize state as vector of zeros.
         xinit = tf.contrib.layers.xavier_initializer()
-        U = tf.get_variable('U', shape=[self.config.hidden_size, self.config.n_classes],
+        if self.config.predict == "non_terminal":
+            output_size = self.config.non_terminal_vocab
+        else:
+            output_size = self.config.terminal_vocab
+        U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
                             initializer=xinit)
-        b2 = tf.Variable(tf.zeros([self.config.n_classes]))
-        h_t = tf.zeros([1, self.config.hidden_size])
-
+        b2 = tf.Variable(tf.zeros([output_size]))
+	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
+        h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
+	state_tuple = (c_t, h_t)
+ 		
         with tf.variable_scope("LSTM"):
             for time_step in range(self.max_length):
-                if time_step > 0:
+                #if self.mask_placeholder[time_step] == False: break
+		if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                o_t, h_t = cell(x[:,time_step,:], h_t[1])
-                o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-                y_t = tf.matmul(o_drop_t, U) + b2
-                preds.append(y_t)
-
-        preds = tf.stack(preds, axis=1)
-
-        assert preds.get_shape().as_list() == [None, self.max_length, self.config.n_classes], "predictions are not of the right shape. Expected {}, got {}".format([None, self.max_length, self.config.n_classes], preds.get_shape().as_list())
+                o_t, h_t= cell(x[:,time_step,:], state_tuple)
+        o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+        preds = tf.matmul(o_drop_t, U) + b2
         return preds
+	
 
     def add_loss_op(self, preds):
         """
@@ -185,11 +197,9 @@ class LSTModel(Model):
         Returns:
             loss: A 0-d tensor (scalar)
         """
-        loss = tf.reduce_mean(
-                    tf.boolean_mask(
+	loss = tf.reduce_mean(
                         tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds,
-                                                                       labels=self.labels_placeholder),
-                        self.mask_placeholder)) 
+                                                                       labels=self.labels_placeholder)) 
         return loss
 
     def add_training_op(self, loss):
@@ -205,25 +215,19 @@ class LSTModel(Model):
         Returns:
             train_op: The Op for training.
         """
-        ### YOUR CODE HERE (~1-2 lines)
-        train_op = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
-        ### END YOUR CODE
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr)
+        gvs = optimizer.compute_gradients(loss)
+        gradients, values = zip(*gvs)
+        if self.config.clip_gradients:
+            gradients, _ = tf.clip_by_global_norm(gradients, clip_norm=self.config.max_grad_norm)
+        self.grad_norm = tf.global_norm(gradients)
+        gvs = zip(gradients, values)
+        train_op = optimizer.apply_gradients(gvs)
+        
+
         return train_op
 
     def preprocess_sequence_data(self, examples):
-        def featurize_windows(data, start, end, window_size = 1):
-            """Uses the input sequences in @data to construct new windowed data points.
-            """
-            ret = []
-            for sentence, labels in data:
-                from util import window_iterator
-                sentence_ = []
-                for window in window_iterator(sentence, window_size, beg=start, end=end):
-                    sentence_.append(sum(window, []))
-                ret.append((sentence_, labels))
-            return ret
-
-        examples = featurize_windows(examples, self.helper.START, self.helper.END)
         return pad_sequences(examples, self.max_length)
 
     def consolidate_predictions(self, examples_raw, examples, preds):
@@ -233,11 +237,9 @@ class LSTModel(Model):
         assert len(examples_raw) == len(preds)
 
         ret = []
-        for i, (sentence, labels) in enumerate(examples_raw):
-            _, _, mask = examples[i]
-            labels_ = [l for l, m in zip(preds[i], mask) if m] # only select elements of mask.
-            assert len(labels_) == len(labels)
-            ret.append([sentence, labels, labels_])
+        for i, (code_snippet, label) in enumerate(examples_raw):
+            labels_ = preds[i]
+            ret.append([code_snippet, labels, labels_])
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
@@ -251,11 +253,14 @@ class LSTModel(Model):
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
 
-    def __init__(self, helper, config, pretrained_embeddings, report=None):
-        super(RNNModel, self).__init__(helper, config, report)
-        self.max_length = min(Config.max_length, helper.max_length)
+    def __init__(self, helper, config, embeddings, report=None):
+        super(LSTMModel, self).__init__(helper, config, report)
+        self.max_length = 49#min(Config.max_length, helper.max_length)
         Config.max_length = self.max_length # Just in case people make a mistake.
-        self.pretrained_embeddings = pretrained_embeddings
+        #self.terminal_embeddings = terminal_embeddings
+        #self.non_terminal_embeddings = non_terminal_embeddings
+	self.embeddings = embeddings
+	self.grad_norm = None
 
         # Defining placeholders.
         self.input_placeholder = None
@@ -263,27 +268,32 @@ class LSTModel(Model):
         self.mask_placeholder = None
         self.dropout_placeholder = None
 
+
         self.build()
-'''
+
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    helper, train, dev, train_raw, dev_raw = load_and_preprocess_data(args)
-    embeddings = load_embeddings(args, helper)
+    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data()
+    #terminal_embeddings = load_embeddings(args, code_comp)
+    #non_terminal_embeddings = load_embeddings(args, code_comp)
+    #terminal_embeddings = np.array(np.random.randn(50000 + 1, 1500), dtype=np.float32)
+    #non_terminal_embeddings = np.array(np.random.randn(10000 + 1, 1500), dtype=np.float32)
+    embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
     config.embed_size = embeddings.shape[1]
-    helper.save(config.output_path)
+    #helper.save(config.output_path)
 
-    handler = logging.FileHandler(config.log_output)
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s: %(message)s'))
-    logging.getLogger().addHandler(handler)
+    #handler = logging.FileHandler(config.log_output)
+    #handler.setLevel(logging.DEBUG)
+    #handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s: %(message)s'))
+    #logging.getLogger().addHandler(handler)
 
     report = None #Report(Config.eval_output)
 
     with tf.Graph().as_default():
         logger.info("Building model...",)
         start = time.time()
-        model = RNNModel(helper, config, embeddings)
+        model = LSTMModel(code_comp, config, embeddings)
         logger.info("took %.2f seconds", time.time() - start)
 
         init = tf.global_variables_initializer()
@@ -318,7 +328,7 @@ def do_evaluate(args):
     with tf.Graph().as_default():
         logger.info("Building model...",)
         start = time.time()
-        model = RNNModel(helper, config, embeddings)
+        model = LSTMModel(helper, config, embeddings)
 
         logger.info("took %.2f seconds", time.time() - start)
 
@@ -329,7 +339,7 @@ def do_evaluate(args):
             session.run(init)
             saver.restore(session, model.config.model_output)
             for sentence, labels, predictions in model.output(session, input_data):
-                predictions = [LBLS[l] for l in predictions]
+                #predictions = [LBLS[l] for l in predictions]
                 print_sentence(args.output, sentence, labels, predictions)
 
 def do_shell(args):
@@ -362,7 +372,7 @@ input> Germany 's representative to the European Union 's veterinary committee .
                     sentence = raw_input("input> ")
                     tokens = sentence.strip().split(" ")
                     for sentence, _, predictions in model.output(session, [(tokens, ["O"] * len(tokens))]):
-                        predictions = [LBLS[l] for l in predictions]
+                        #predictions = [LBLS[l] for l in predictions]
                         print_sentence(sys.stdout, sentence, [""] * len(tokens), predictions)
                 except EOFError:
                     print("Closing session.")
@@ -372,23 +382,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Trains and tests an NER model')
     subparsers = parser.add_subparsers()
 
-    command_parser = subparsers.add_parser('test1', help='')
-    command_parser.set_defaults(func=do_test1)
+    #command_parser = subparsers.add_parser('test1', help='')
+    #command_parser.set_defaults(func=do_test1)
 
-    command_parser = subparsers.add_parser('test2', help='')
-    command_parser.add_argument('-dt', '--data-train', type=argparse.FileType('r'), default="data/tiny.conll", help="Training data")
-    command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/tiny.conll", help="Dev data")
-    command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
-    command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["rnn", "gru"], default="rnn", help="Type of RNN cell to use.")
-    command_parser.set_defaults(func=do_test2)
+    #command_parser = subparsers.add_parser('test2', help='')
+    #command_parser.add_argument('-dt', '--data-train', type=argparse.FileType('r'), default="data/tiny.conll", help="Training data")
+    #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/tiny.conll", help="Dev data")
+    #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
+    #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
+    #command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
+    #command_parser.set_defaults(func=do_test2)
 
     command_parser = subparsers.add_parser('train', help='')
-    command_parser.add_argument('-dt', '--data-train', type=argparse.FileType('r'), default="data/train.conll", help="Training data")
-    command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
-    command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
-    command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["rnn", "gru"], default="rnn", help="Type of RNN cell to use.")
+    #command_parser.add_argument('-dt', '--data-train', type=argparse.FileType('r'), default="data/train.conll", help="Training data")
+    #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
+    #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
+    #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
+    command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
+    command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.set_defaults(func=do_train)
 
     command_parser = subparsers.add_parser('evaluate', help='')
@@ -396,15 +408,18 @@ if __name__ == "__main__":
     command_parser.add_argument('-m', '--model-path', help="Training data")
     command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["rnn", "gru"], default="rnn", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-o', '--output', type=argparse.FileType('w'), default=sys.stdout, help="Training data")
+    command_parser.add_argument('-tnt', '--non-terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
+    command_parser.add_argument('-cp', '--clip', choices=["terminal", "non_terminal"], default="non_terminal", help="clip gradients")
     command_parser.set_defaults(func=do_evaluate)
 
     command_parser = subparsers.add_parser('shell', help='')
     command_parser.add_argument('-m', '--model-path', help="Training data")
     command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["rnn", "gru"], default="rnn", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-tnt', '--non-terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.set_defaults(func=do_shell)
 
     ARGS = parser.parse_args()
@@ -413,4 +428,4 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         ARGS.func(ARGS)
-'''
+
