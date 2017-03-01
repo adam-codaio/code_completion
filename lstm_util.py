@@ -231,8 +231,6 @@ def minibatch(data, minibatch_idx):
 
 def minibatches(data, batch_size, shuffle=True):
     for col in zip(*data):
-	#print col
-	#print np.array(col)
         batches = [np.array(col) for col in zip(*data)]
     return get_minibatches(batches, batch_size, shuffle)
 

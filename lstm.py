@@ -44,7 +44,7 @@ class Config:
     embed_size = 1500
     hidden_size = embed_size
     batch_size = 80
-    n_epochs = 10
+    n_epochs = 1
     max_grad_norm = 5.
     lr = 0.001
 
@@ -57,7 +57,7 @@ class Config:
             # Where to save things.
             self.output_path = args.output_path
         else:
-            self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
+            self.output_path = "results/"#/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
@@ -78,12 +78,15 @@ def pad_sequences(data, max_length):
     zero_label = 4 # corresponds to the 'O' tag
 
     for code_snippet, labels in data:
-        pad = max_length*2 - len(code_snippet)
-        if pad < 0:
+        in_pad = max_length*2 - len(code_snippet)
+	mask_pad = int(len(code_snippet)/2)
+        if in_pad <= 0:
             ret.append((code_snippet[:max_length*2], labels, [False] * (max_length-1) + [True]))
         else:
-            ret.append((code_snippet + zero_vector * pad, labels, [False] * (max_length-1) + [True]))
-                       #[False] * (int(len(code_snippet)/2)-1)+[True] + [False] * int(pad/2)))
+	    mask = [False] * max_length
+	    mask[mask_pad] = True
+            ret.append((code_snippet + zero_vector * in_pad, labels, mask))
+                   
     return ret
 
 class LSTMModel(SequenceModel):
@@ -248,17 +251,12 @@ class LSTMModel(SequenceModel):
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
         feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
-        predictions = sess.run(tf.argmax(self.pred, axis=2), feed_dict=feed)
+        predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=Config.dropout)
-	#for i in range(len(mask_batch)):
-	    #print len(mask_batch[i])
-	print mask_batch.shape
-	#for f in feed:
-	    #print feed[f].shape
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
 
@@ -282,17 +280,17 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data()
-    #terminal_embeddings = load_embeddings(args, code_comp)
-    #non_terminal_embeddings = load_embeddings(args, code_comp)
-    #terminal_embeddings = np.array(np.random.randn(50000 + 1, 1500), dtype=np.float32)
+    train = train[:320]
+    dev = dev[:320]
     embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
     config.embed_size = embeddings.shape[1]
-    #helper.save(config.output_path)
+    helper = ModelHelper(code_comp.tok2id, 49)
+    helper.save(config.output_path)
 
-    #handler = logging.FileHandler(config.log_output)
-    #handler.setLevel(logging.DEBUG)
-    #handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s: %(message)s'))
-    #logging.getLogger().addHandler(handler)
+    handler = logging.FileHandler(config.log_output)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s: %(message)s'))
+    logging.getLogger().addHandler(handler)
 
     report = None #Report(Config.eval_output)
 

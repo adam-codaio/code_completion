@@ -55,11 +55,15 @@ class SequenceModel(Model):
         Returns:
             The F1 score for predicting tokens as named entities.
         """
+	
         correct_preds, total_correct, total_preds = 0., 0., 0.
         for _, labels, labels_  in self.output(sess, examples_raw, examples):
+	    correct_preds += (labels == labels_)
+	    total_preds += 1
+	    '''
             gold = set(labels)
             pred = set(labels_)
-            correct_preds += len(gold.intersection(pred))
+            correct_preds = len(gold.intersection(pred))
             total_preds += len(pred)
             total_correct += len(gold)
 
@@ -67,6 +71,8 @@ class SequenceModel(Model):
         r = correct_preds / total_correct if correct_preds > 0 else 0
         f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
         return (p, r, f1)
+	'''
+	return correct_preds/total_preds	
 
 
     def run_epoch(self, sess, train_examples, dev_set, train_examples_raw, dev_set_raw):
@@ -81,10 +87,12 @@ class SequenceModel(Model):
         entity_scores = self.evaluate(sess, dev_set, dev_set_raw)
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
-        logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
+        #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
+	logger.info("Accuracy: %.2f", entity_scores)
 
-        f1 = entity_scores[-1]
-        return f1
+        #f1 = entity_scores[-1]
+        #return f1
+	return entity_scores
 
     def output(self, sess, inputs_raw, inputs=None):
         """
