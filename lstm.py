@@ -38,8 +38,8 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 97
-    terminal_vocab = 50000
+    non_terminal_vocab = 50200
+    terminal_vocab = 50200
     dropout = 0.5
     embed_size = 1500
     hidden_size = embed_size
@@ -78,12 +78,12 @@ def pad_sequences(data, max_length):
     zero_label = 4 # corresponds to the 'O' tag
 
     for code_snippet, labels in data:
-        pad = max_length - len(code_snippet)
+        pad = max_length*2 - len(code_snippet)
         if pad < 0:
-            ret.append((code_snippet[:max_length], labels, [True] * max_length))
+            ret.append((code_snippet[:max_length*2], labels, [False] * (max_length-1) + [True]))
         else:
-            ret.append((code_snippet + zero_vector * pad, labels,
-                       [True] * len(code_snippet) + [False] * pad))
+            ret.append((code_snippet + zero_vector * pad, labels, [False] * (max_length-1) + [True]))
+                       #[False] * (int(len(code_snippet)/2)-1)+[True] + [False] * int(pad/2)))
     return ret
 
 class LSTMModel(SequenceModel):
@@ -92,7 +92,7 @@ class LSTMModel(SequenceModel):
         """
         Generates placeholder variables to represent the input tensors
         """
-        #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length)#, self.config.n_token_features))
+        #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_token_features))
 	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
 	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
@@ -113,8 +113,8 @@ class LSTMModel(SequenceModel):
         feed_dict = {}
         if inputs_batch is not None:
 	    #non_terminal, terminal = zip(*inputs_batch)
-	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[::2]
-	    feed_dict[self.terminal_input_placeholder] = inputs_batch[1::2]
+	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[:,::2]
+	    feed_dict[self.terminal_input_placeholder] = inputs_batch[:,1::2]
             #feed_dict[self.input_placeholder] = inputs_batch
         if mask_batch is not None:
             feed_dict[self.mask_placeholder] = mask_batch
@@ -144,7 +144,7 @@ class LSTMModel(SequenceModel):
         #non_terminal_embed_tensor = tf.Variable(self.non_terminal_embeddings)
         embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.embeddings, self.non_terminal_input_placeholder)
         #output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
-        #embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
+        embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
         return embeddings
 
     def add_prediction_op(self):
@@ -163,6 +163,8 @@ class LSTMModel(SequenceModel):
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
 
+        preds = [] # Predicted output at each timestep should go here!
+
         cell = LSTMCell(Config.n_token_features * Config.embed_size, Config.hidden_size)
 
         # Define U and b2 as variables.
@@ -178,17 +180,18 @@ class LSTMModel(SequenceModel):
 	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
         h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
 	state_tuple = (c_t, h_t)
- 		
+
         with tf.variable_scope("LSTM"):
             for time_step in range(self.max_length):
-                #if self.mask_placeholder[time_step] == False: break
 		if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
                 o_t, h_t= cell(x[:,time_step,:], state_tuple)
-        o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-        preds = tf.matmul(o_drop_t, U) + b2
-        return preds
+        	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+        	preds.append(tf.matmul(o_drop_t, U) + b2)
+	preds = tf.stack(preds, 1)
+	preds = tf.boolean_mask(preds, self.mask_placeholder)
 	
+        return preds
 
     def add_loss_op(self, preds):
         """
@@ -197,7 +200,7 @@ class LSTMModel(SequenceModel):
         Returns:
             loss: A 0-d tensor (scalar)
         """
-	loss = tf.reduce_mean(
+        loss = tf.reduce_mean(
                         tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds,
                                                                        labels=self.labels_placeholder)) 
         return loss
@@ -215,6 +218,7 @@ class LSTMModel(SequenceModel):
         Returns:
             train_op: The Op for training.
         """
+
         optimizer = tf.train.AdamOptimizer(learning_rate=self.config.lr)
         gvs = optimizer.compute_gradients(loss)
         gradients, values = zip(*gvs)
@@ -237,8 +241,8 @@ class LSTMModel(SequenceModel):
         assert len(examples_raw) == len(preds)
 
         ret = []
-        for i, (code_snippet, label) in enumerate(examples_raw):
-            labels_ = preds[i]
+        for i, (code_snippet, labels) in enumerate(examples_raw):
+            labels_ = preds[i] # only select elements of mask.
             ret.append([code_snippet, labels, labels_])
         return ret
 
@@ -250,6 +254,11 @@ class LSTMModel(SequenceModel):
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=Config.dropout)
+	#for i in range(len(mask_batch)):
+	    #print len(mask_batch[i])
+	print mask_batch.shape
+	#for f in feed:
+	    #print feed[f].shape
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
 
@@ -257,9 +266,7 @@ class LSTMModel(SequenceModel):
         super(LSTMModel, self).__init__(helper, config, report)
         self.max_length = 49#min(Config.max_length, helper.max_length)
         Config.max_length = self.max_length # Just in case people make a mistake.
-        #self.terminal_embeddings = terminal_embeddings
-        #self.non_terminal_embeddings = non_terminal_embeddings
-	self.embeddings = embeddings
+        self.embeddings = embeddings
 	self.grad_norm = None
 
         # Defining placeholders.
@@ -278,7 +285,6 @@ def do_train(args):
     #terminal_embeddings = load_embeddings(args, code_comp)
     #non_terminal_embeddings = load_embeddings(args, code_comp)
     #terminal_embeddings = np.array(np.random.randn(50000 + 1, 1500), dtype=np.float32)
-    #non_terminal_embeddings = np.array(np.random.randn(10000 + 1, 1500), dtype=np.float32)
     embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
     config.embed_size = embeddings.shape[1]
     #helper.save(config.output_path)
