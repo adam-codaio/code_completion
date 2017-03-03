@@ -57,7 +57,7 @@ class Config:
             # Where to save things.
             self.output_path = args.output_path
         else:
-            self.output_path = "results/"#/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
+            self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
@@ -246,7 +246,7 @@ class LSTMModel(SequenceModel):
         ret = []
         for i, (code_snippet, labels) in enumerate(examples_raw):
             labels_ = preds[i] # only select elements of mask.
-            ret.append([code_snippet, labels, labels_])
+            ret.append([code_snippet, labels[0], labels_])
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
@@ -307,14 +307,14 @@ def do_train(args):
             session.run(init)
             model.fit(session, saver, train, dev)
             if report:
-                report.log_output(model.output(session, dev_raw))
+                report.log_output(model.output(session, dev))
                 report.save()
             else:
                 # Save predictions in a text file.
-                output = model.output(session, dev_raw)
-                sentences, labels, predictions = zip(*output)
-                predictions = [[LBLS[l] for l in preds] for preds in predictions]
-                output = zip(sentences, labels, predictions)
+                output = model.output(session, dev)
+                #sentences, labels, predictions = zip(*output)
+                #predictions = [[LBLS[l] for l in preds] for preds in predictions]
+                #output = zip(sentences, labels, predictions)
 
                 with open(model.config.conll_output, 'w') as f:
                     write_conll(f, output)

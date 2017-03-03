@@ -50,11 +50,19 @@ def write_conll(fstream, data):
     Writes to an output stream @fstream (e.g. output of `open(fname, 'r')`) in CoNLL file format.
     @data a list of examples [(tokens), (labels), (predictions)]. @tokens, @labels, @predictions are lists of string.
     """
-    for cols in data:
+    for d in data:
+	print d
+	fstream.write("\t".join(d))
+	fstream.write("\n")
+    fstream.write("\n")
+    '''
+    for cols in data
         for row in zip(*cols):
             fstream.write("\t".join(row))
             fstream.write("\n")
         fstream.write("\n")
+	'''
+	
 
 def load_word_vector_mapping(vocab_fstream, vector_fstream):
     """
