@@ -1,3 +1,4 @@
+import json
 import pickle
 from collections import Counter
 from sets import Set
@@ -9,12 +10,11 @@ def build_embedding_counts():
 	terminal_counts = Counter()
 	non_terminal_types = {}
 
-	with open('tok2id.pickle', 'rb') as handle:
+	with open('../data/tok2id.pickle', 'rb') as handle:
     	tok2id = pickle.load(handle)
 
-	with open('../../data/programs_training.json', 'r') as f:
+	with open('../data/programs_training.json', 'r') as f:
 		for line in f:
-			import json
 			data = json.loads(line)
 			for node in data:
 				if node != 0:
@@ -30,18 +30,13 @@ def build_embedding_counts():
 		top_terminal_names[terminal_node] = idx_count
 		idx_count += 1
 
-	print top_terminal_names
-	print non_terminal_types 
-
-	with open('terminal_embeddings_idx.pickle', 'wb') as counts_pickle:
+	with open('../data/terminal_embeddings_idx.pickle', 'wb') as counts_pickle:
 		pickle.dump(top_terminals, counts_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-	with open('non_terminal_types.pickle', 'wb') as non_term_pickle:
+	with open('../data/non_terminal_types.pickle', 'wb') as non_term_pickle:
 		pickle.dump(non_terminal_types, non_term_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
-	# print "DONE"
-	# print terminal_counts
 
 def get_terminal_count(data, terminal_counts, non_terminal_types, tok2id):		
 	T_i = "EMPTY"
@@ -72,7 +67,7 @@ def embeddings_matrix():
 	#embeddings[1-50000] = common terminal nodes - mapping of terminal node to index can be found from top_terminal_names
 	#embeddings[50000-50200] = non-terminal nodes
 	#NEED TO IMPORT NP
-	embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
+	#embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
 
 
 #data_util.py from assign3 -- for load embeddings
