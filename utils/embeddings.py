@@ -53,11 +53,13 @@ def get_terminal_count(data, terminal_counts, non_terminal_types, tok2id):
 			v = '<NON_ASCII>'
 		T_i = v
 
-	if data["type"] not in tok2id:
-		tok2id[data["type"]] = len(tok2id)
-	if tok2id[data["type"]] not in non_terminal_types:
-		non_terminal_types[tok2id[data["type"]]] = len(non_terminal_types)
-
+	N_arr = [(data["type"], 0, 0), (data["type"], 1, 0), (data["type"], 0, 1), (data["type"], 1, 1)]
+	for N_t in N_arr: 
+		if N_t not in tok2id:
+			tok2id[N_t] = len(tok2id)
+		if tok2id[N_t] not in non_terminal_types:
+			non_terminal_types[tok2id[N_t]] = len(non_terminal_types)
+		
 	if T_i not in tok2id:
 		tok2id[T_i] = len(tok2id)
 	terminal_counts[tok2id[T_i]] += 1
