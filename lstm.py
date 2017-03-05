@@ -290,7 +290,8 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data()
+    nt = True if args.non_terminal == 'non_terminal' else False
+    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
     train = train[:320]
     dev = dev[:320]
     embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
@@ -328,7 +329,8 @@ def do_train(args):
                 #output = zip(sentences, labels, predictions)
 
                 with open(model.config.conll_output, 'w') as f:
-                    write_conll(f, output)
+                    #Commenting this out for now as I don't think it works for our data
+                    #write_conll(f, output)
                 with open(model.config.eval_output, 'w') as f:
                     for sentence, labels, predictions in output:
                         print_sentence(f, sentence, labels, predictions)
