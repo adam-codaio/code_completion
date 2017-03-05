@@ -9,13 +9,16 @@ def build_embedding_counts():
 	terminal_counts = Counter()
 	non_terminal_types = {}
 
+	with open('tok2id.pickle', 'rb') as handle:
+    	tok2id = pickle.load(handle)
+
 	with open('../../data/programs_training.json', 'r') as f:
 		for line in f:
 			import json
 			data = json.loads(line)
 			for node in data:
 				if node != 0:
-					non_terminal_count = get_terminal_count(node, terminal_counts, non_terminal_types)
+					non_terminal_count = get_terminal_count(node, terminal_counts, non_terminal_types, tok2id)
 
 			# break
 
@@ -40,7 +43,7 @@ def build_embedding_counts():
 	# print "DONE"
 	# print terminal_counts
 
-def get_terminal_count(data, terminal_counts, non_terminal_types):		
+def get_terminal_count(data, terminal_counts, non_terminal_types, tok2id):		
 	T_i = "EMPTY"
 	v = data.get("value", False) 
 	if v:
@@ -50,10 +53,14 @@ def get_terminal_count(data, terminal_counts, non_terminal_types):
 			v = '<NON_ASCII>'
 		T_i = v
 
-	if data["type"] not in non_terminal_types:
-		non_terminal_types[data["type"]] = len(non_terminal_types)
+	if data["type"] not in tok2id:
+		tok2id[data["type"]] = len(tok2id)
+	if tok2id[data["type"]] not in non_terminal_types:
+		non_terminal_types[tok2id[data["type"]]] = len(non_terminal_types)
 
-	terminal_counts[T_i] += 1
+	if T_i not in tok2id:
+		tok2id[T_i] = len(tok2id)
+	terminal_counts[tok2id[T_i]] += 1
 
 	return 
 
