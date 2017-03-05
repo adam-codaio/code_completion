@@ -53,6 +53,10 @@ class CodeCompleter(object):
         # called from create_instances
         pass
 
+    def save_pickle(self, dataset):
+        with open('tok2id.pickle', 'wb') as tok2id_pickle:
+            pickle.dump(self.tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+
 def process_token_list(token_list):
     '''
     Takes the token_list and separates it into features and label for each
@@ -108,6 +112,9 @@ def load_and_preprocess_data(reduced=True):
     start = time.time()
     code_comp = CodeCompleter(train_set)
     print "took {:.2f} seconds".format(time.time() - start)
+
+    print "saving token to id matrix"
+    code_comp.save_pickle(train_set)
 
     print "Vectorizing data...",
     start = time.time()
