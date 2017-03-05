@@ -1,79 +1,119 @@
 import json
 import os
 import time
-from tree_utils import ast_to_lcrs, tree_traversal
+from tree_utils import ast_to_lcrs
+from token_mapping import tree_traversal
 
 """
-Largely inspired by code from cs224n PSETs 2 and 3 
+Largely inspired by code from cs224n PSET 2 for the 
+dependency parser
 """
 
-UNK = "<UNK>"
+I_PREFIX = '<i>:'
+T_PREFIX = '<t>:'
+V_PREFIX = '<v>:'
+C_PREFIX = '<c>:'
+
+NON_ASCII = '<NON_ASCII>'
+I_UNK = '<I_UNK>'
+T_UNK = '<T_UNK>'
+V_UNK = '<V_UNK>'
+C_UNK = '<C_UNK>'
+V_NULL = '<V_NULL>'
+C_NULL = '<C_NULL>'
 
 class Config(object):
     data_path = './data'
     reduced_train = 500
     reduced_dev = 100
     reduced_test = 100
-    segment_size = 50
-    nt_pred = True
     train_file = 'programs_training.json'
     dev_file = 'programs_dev.json'
     test_file = 'programs_test.json'
-
-config = Config()
 
 class CodeCompleter(object):
     def __init__(self, dataset):
         tok2id = {};
         for ex in dataset:
-            features = ex[0]
-            label = ex[1]
-            for feature in features:
-                if feature not in tok2id:
-                    tok2id[feature] = len(tok2id)
-        if label[0] not in tok2id:
-            tok2id[label[0]] = len(tok2id)
-        tok2id[UNK] = len(tok2id)
+            for node in ex:
+               if node == 0:
+                   continue
+               i = str(node['id'])
+               if I_PREFIX + i not in tok2id:
+                   tok2id[I_PREFIX + i] = len(tok2id)
+               t = node['type']
+               if T_PREFIX + t not in tok2id:
+                   tok2id[T_PREFIX + t] = len(tok2id)
+               v = node.get('value', False)
+               if v:
+                   try:
+                       v = str(v)
+                   except:
+                       v = NON_ASCII
+                   if V_PREFIX + v not in tok2id:
+                       tok2id[V_PREFIX + v] = len(tok2id)
+               c = node.get('children', False)
+               if c:
+                   c = str(c)
+                   if C_PREFIX + c not in tok2id:
+                       tok2id[C_PREFIX + c] = len(tok2id)
 
+        tok2id[I_UNK] = self.I_UNK = len(tok2id)
+        tok2id[T_UNK] = self.T_UNK = len(tok2id)
+        tok2id[V_UNK] = self.V_UNK = len(tok2id)
+        tok2id[C_UNK] = self.C_UNK = len(tok2id)           
+        tok2id[V_NULL] = self.V_NULL = len(tok2id)
+        tok2id[C_NULL] = self.C_NULL = len(tok2id)           
+     
         self.tok2id = tok2id
+        self.id2tok = {v: k for k, v in tok2id.items()}
+        self.ntokens = len(tok2id)
+ 
   
     def vectorize(self, examples):
         vec_examples = []
         for ex in examples:
-            vec_features = [self.tok2id.get(feature, self.tok2id[UNK]) for feature in ex[0]]
-            vec_label = [self.tok2id.get(ex[1][0], self.tok2id[UNK])]
-            vec_examples.append([vec_features, vec_label])
+            combined = {'id': [], 'type': [], 'value': [], 'children': []}
+            for node in ex:
+                if node == 0:
+                    continue
+                i = I_PREFIX + str(node['id'])
+                id_id = [self.tok2id[i] if i in self.tok2id else self.I_UNK]
+                t = T_PREFIX + node['type']
+                type_id = [self.tok2id[t] if t in self.tok2id else self.T_UNK]
+                v = node.get('value', None)
+                value_id = [V_NULL]
+                if v is not None:
+                    try:
+                        v = V_PREFIX + str(v)
+                    except:
+                        v = V_PREFIX + NON_ASCII
+                    value_id = [self.tok2id[v] if v in self.tok2id else self.V_UNK]
+                c = node.get('children', None)
+                children_id = [C_NULL]         
+                if c is not None:
+                    c = C_PREFIX + str(c)
+                    children_id = [self.tok2id[c] if c in self.tok2id else self.C_UNK]
+                combined['id'].extend(id_id)
+                combined['type'].extend(type_id)
+                combined['value'].extend(value_id)
+                combined['children'].extend(children_id)
+            vec_examples.append(combined)
         return vec_examples
+
 
     def create_instances(self, examples):
         return examples
+
 
     def extract_features(self, example):
         # There is where a lot of heavy lifting is going to happen
         # called from create_instances
         pass
 
-def process_token_list(token_list):
+def read_data(infile, reduced=False, num_examples=None):
     '''
-    Takes the token_list and separates it into features and label for each
-    segment.
-    '''
-    token_list = token_list[:-1] # Drop last token which is always Program NT
-    segments = []
-    for i in xrange(0, len(token_list), config.segment_size):
-        segment = token_list[i:i + config.segment_size]
-        features = []
-        for tup in segment[:-1]:
-            features.extend(list(tup))
-        idx = 0 if config.nt_pred else 1
-        label = [token_list[-1][idx]]
-        segments.append([features, label])
-    return segments
-
-def read_json(infile, reduced=False, num_examples=None):
-    '''
-    This reads in the asts from the file and converts them to binary trees
-    and then token lists.
+    This reads in the asts from the file and converts them to binary trees.
     '''
     examples = []
  
@@ -81,9 +121,8 @@ def read_json(infile, reduced=False, num_examples=None):
         for line in f:
             data = json.loads(line)
             binarized = ast_to_lcrs(data)
-            token_list = tree_traversal(binarized)
-            segments = process_token_list(token_list)
-            examples.extend(segments)
+            token_list, terminal_map, non_terminal_map = tree_traversal(binarized)
+            examples.append(token_list)
             if reduced:
                 num_examples -= 1
                 if num_examples == 0:
@@ -96,11 +135,11 @@ def load_and_preprocess_data(nt_pred, reduced=True):
     print "Loading data...",
     start = time.time()
 
-    train_set = read_json(os.path.join(config.data_path, config.train_file),
+    train_set = read_data(os.path.join(config.data_path, config.train_file),
                           reduced, config.reduced_train)
-    dev_set = read_json(os.path.join(config.data_path, config.dev_file),
+    dev_set = read_data(os.path.join(config.data_path, config.dev_file),
                         reduced, config.reduced_dev)
-    test_set = read_json(os.path.join(config.data_path, config.test_file),
+    test_set = read_data(os.path.join(config.data_path, config.test_file),
                          reduced, config.reduced_test)
     print "took {:.2f} seconds".format(time.time() - start)
     
