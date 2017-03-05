@@ -50,21 +50,22 @@ class Config:
 
     def __init__(self, args):
         self.cell = args.cell
-        self.predict = args.non_terminal
+        self.terminal_pred = 0
+	if args.non_terminal == "terminal": self.terminal_pred = 1
 	self.clip_gradients = args.clip
 
         if "output_path" in args:
             # Where to save things.
             self.output_path = args.output_path
         else:
-            self.output_path = "results/"#/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
+            self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
 
 
-def pad_sequences(data, max_length):
+def pad_sequences(data, max_length, terminal_pred):
     """
     Ensures each input-output seqeunce pair in @data is of length
     @max_length by padding it with zeros and truncating the rest of the
@@ -78,10 +79,10 @@ def pad_sequences(data, max_length):
     zero_label = 4 # corresponds to the 'O' tag
 
     for code_snippet, labels in data:
-        in_pad = max_length*2 - len(code_snippet)
-	mask_pad = int(len(code_snippet)/2)
+        in_pad = max_length*2 + terminal_pred - len(code_snippet)
+	mask_pad = int((len(code_snippet)-terminal_pred)/2)
         if in_pad <= 0:
-            ret.append((code_snippet[:max_length*2], labels, [False] * (max_length-1) + [True]))
+            ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True]))
         else:
 	    mask = [False] * max_length
 	    mask[mask_pad] = True
@@ -98,6 +99,7 @@ class LSTMModel(SequenceModel):
         #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_token_features))
 	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
 	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float32)
@@ -115,10 +117,11 @@ class LSTMModel(SequenceModel):
         """
         feed_dict = {}
         if inputs_batch is not None:
-	    #non_terminal, terminal = zip(*inputs_batch)
 	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[:,::2]
 	    feed_dict[self.terminal_input_placeholder] = inputs_batch[:,1::2]
-            #feed_dict[self.input_placeholder] = inputs_batch
+	    if self.config.terminal_pred:
+		feed_dict[self.non_terminal_input_placeholder] = feed_dict[self.non_terminal_input_placeholder][:,:-1]
+		feed_dict[self.next_non_terminal_input_placeholder]=inputs_batch[:,-1]
         if mask_batch is not None:
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
@@ -173,18 +176,20 @@ class LSTMModel(SequenceModel):
         # Define U and b2 as variables.
         # Initialize state as vector of zeros.
         xinit = tf.contrib.layers.xavier_initializer()
-        if self.config.predict == "non_terminal":
+        if not self.config.terminal_pred:
             output_size = self.config.non_terminal_vocab
         else:
             output_size = self.config.terminal_vocab
         U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
                             initializer=xinit)
-        b2 = tf.Variable(tf.zeros([output_size]))
+        b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0))
 	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
         h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
 	state_tuple = (c_t, h_t)
 
-        with tf.variable_scope("LSTM"):
+	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
+
+        with tf.variable_scope(scope):
             for time_step in range(self.max_length):
 		if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
@@ -193,6 +198,12 @@ class LSTMModel(SequenceModel):
         	preds.append(tf.matmul(o_drop_t, U) + b2)
 	preds = tf.stack(preds, 1)
 	preds = tf.boolean_mask(preds, self.mask_placeholder)
+	if self.config.terminal_pred:
+	    nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
+	    nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
+	    U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
+            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+	    preds = preds + tf.matmul(nt, U_nt) + b_t
 	
         return preds
 
@@ -235,7 +246,7 @@ class LSTMModel(SequenceModel):
         return train_op
 
     def preprocess_sequence_data(self, examples):
-        return pad_sequences(examples, self.max_length)
+        return pad_sequences(examples, self.max_length, self.config.terminal_pred)
 
     def consolidate_predictions(self, examples_raw, examples, preds):
         """Batch the predictions into groups of sentence length.
@@ -246,7 +257,7 @@ class LSTMModel(SequenceModel):
         ret = []
         for i, (code_snippet, labels) in enumerate(examples_raw):
             labels_ = preds[i] # only select elements of mask.
-            ret.append([code_snippet, labels, labels_])
+            ret.append([code_snippet, labels[0], labels_])
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
@@ -279,7 +290,8 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data()
+    nt = True if args.non_terminal == 'non_terminal' else False
+    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
     train = train[:320]
     dev = dev[:320]
     embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
@@ -307,17 +319,18 @@ def do_train(args):
             session.run(init)
             model.fit(session, saver, train, dev)
             if report:
-                report.log_output(model.output(session, dev_raw))
+                report.log_output(model.output(session, dev))
                 report.save()
             else:
                 # Save predictions in a text file.
-                output = model.output(session, dev_raw)
-                sentences, labels, predictions = zip(*output)
-                predictions = [[LBLS[l] for l in preds] for preds in predictions]
-                output = zip(sentences, labels, predictions)
+                output = model.output(session, dev)
+                #sentences, labels, predictions = zip(*output)
+                #predictions = [[LBLS[l] for l in preds] for preds in predictions]
+                #output = zip(sentences, labels, predictions)
 
                 with open(model.config.conll_output, 'w') as f:
-                    write_conll(f, output)
+                    #Commenting this out for now as I don't think it works for our data
+                    #write_conll(f, output)
                 with open(model.config.eval_output, 'w') as f:
                     for sentence, labels, predictions in output:
                         print_sentence(f, sentence, labels, predictions)

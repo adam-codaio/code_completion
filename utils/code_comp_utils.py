@@ -130,9 +130,8 @@ def read_data(infile, reduced=False, num_examples=None):
 
     return examples
 
-def load_and_preprocess_data(reduced=True):
-    config = Config()
-    
+def load_and_preprocess_data(nt_pred, reduced=True):
+    config.nt_pred = nt_pred
     print "Loading data...",
     start = time.time()
 
