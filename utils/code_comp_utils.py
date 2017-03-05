@@ -32,7 +32,11 @@ class CodeCompleter(object):
   
 def vectorize(examples, tok2id):
     vec_examples = []
+    num_examples = 0
     for ex in examples:
+        num_examples += 1
+        if num_examples % 1000 == 0:
+            print num_examples
         vec_features = [tok2id.get(feature, tok2id[UNK]) for feature in ex[0]]
         vec_label = [tok2id.get(ex[1][0], tok2id[UNK])]
         vec_examples.append([vec_features, vec_label])
@@ -81,7 +85,11 @@ def read_json(infile, reduced=False, num_examples=None):
 
 def create_tok2id(dataset):
     tok2id = {};
+    num_examples = 0
     for ex in dataset:
+        num_examples += 1
+        if num_examples % 1000 == 0:
+            print num_examples
         features = ex[0]
         label = ex[1]
         for feature in features:
@@ -89,7 +97,7 @@ def create_tok2id(dataset):
                 tok2id[feature] = len(tok2id)
             if label[0] not in tok2id:
                  tok2id[label[0]] = len(tok2id)
-            tok2id[UNK] = len(tok2id)
+    tok2id[UNK] = len(tok2id)
 
     return tok2id
 

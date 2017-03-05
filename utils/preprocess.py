@@ -6,26 +6,30 @@ def main():
     train_set = read_json('../data/programs_training.json')
     print "read the training set!"
 
+    print "about to create the tok2id mapping"
     tok2id = create_tok2id(train_set)
     print "created the tok2id mapping!"
     with open('../data/tok2id.pickle', 'wb') as f:
         pickle.dump(tok2id, f, protocol=pickle.HIGHEST_PROTOCOL)
     print "dumped the tok2id"
 
+    print "about to vectorize the train set"
     train_set = vectorize(train_set, tok2id)
     print "vectorized the train set"
     with open('../data/train_vectorized.pickle', 'wb') as f:
         pickle.dump(train_set, f, protocol=pickle.HIGHEST_PROTOCOL)
     print "dumped the train set"
 
-    print "vectorized the dev set"
+    print "about to vectorize the dev set"
     dev_set = vectorize(read_json('../data/programs_dev.json'), tok2id)
+    print "vectorized the dev set"
     with open('../data/dev_vectorized.pickle', 'wb') as f:
         pickle.dump(dev_set, f, protocol=pickle.HIGHEST_PROTOCOL)
     print "dumped the dev set"
 
-    print "vectorized the test set"
+    print "about to vectorize the test set"
     test_set = vectorize(read_json('../data/programs_test.json'), tok2id)
+    print "vectorized the test set"
     with open('../data/test_vectorized.pickle', 'wb') as f:
         pickle.dump(test_set, f, protocol=pickle.HIGHEST_PROTOCOL)
     print "dumped the test set"
