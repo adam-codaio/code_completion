@@ -1,16 +1,63 @@
 import pickle
+import numpy as np
 from collections import Counter
-from sets import Set
+from tree_utils import ast_to_lcrs, tree_traversal
+# from code_comp_utils import vectorize, read_json, create_tok2id
 
-embed_size = 1500
-non_terminals = 200
+UNK = "<UNK>"
+GLOVE_FILE_PATH = './glove/vectors.txt'
+
+def saveWordVectors():
+	allWordVectors = loadWordVectors()
+	with open('allGloveVectors.pickle', 'wb') as pkl:
+		pickle.dump(allWordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
+	return allWordVectors
+
+def buildSmallGloveMatrix():
+	with open('tok2id.pickle', 'rb') as handle:
+		tok2id = pickle.load(handle)
+	with open('allGloveVectors.pickle', 'rb') as handle:
+		allGloveVectors = pickle.load(handle)
+
+	wordVectors = np.zeros((len(tok2id), dimensions))
+	for key, val in tok2id.items():
+		if key in allGloveVectors:
+			wordVectors[val] = allGloveVectors[key]
+		else:
+			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+
+	with open('wordVectors.pickle', 'wb') as pkl:
+		pickle.dump(wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def loadWordVectors(filepath=GLOVE_FILE_PATH, dimensions=50):
+    """Read pretrained GloVe vectors"""
+    wordVectors = {}
+    count = 10
+    with open(filepath) as ifs:
+        for line in ifs:
+            line = line.strip()
+            if not line:
+                continue
+            row = line.split()
+            token = row[0]
+            if token in wordVectors:
+            	continue
+            data = [float(x) for x in row[1:]]
+            if len(data) != dimensions:
+                raise RuntimeError("wrong number of dimensions")
+            wordVectors[token] = np.asarray(data)
+    return wordVectors
 
 def build_embedding_counts():
+	allWordVectors = saveWordVectors()
 	terminal_counts = Counter()
 	non_terminal_types = {}
+	tok2id = {}
+	id2tok = {}
 
-	with open('tok2id.pickle', 'rb') as handle:
-    	tok2id = pickle.load(handle)
+	id2tok[len(tok2id)] = UNK
+	tok2id[UNK] = len(tok2id)
 
 	with open('../../data/programs_training.json', 'r') as f:
 		for line in f:
@@ -18,32 +65,37 @@ def build_embedding_counts():
 			data = json.loads(line)
 			for node in data:
 				if node != 0:
-					non_terminal_count = get_terminal_count(node, terminal_counts, non_terminal_types, tok2id)
+					get_tok2id(node, terminal_counts, non_terminal_types, tok2id, id2tok, allWordVectors)
 
 			# break
 
 	top_terminals = terminal_counts.most_common(50000)
 
-	top_terminal_names = {}
-	idx_count = 1
-	for terminal_node, count in top_terminals:
-		top_terminal_names[terminal_node] = idx_count
-		idx_count += 1
+	non_terminals = {}
+	for data_type in non_terminal_types:
+		N_arr = [(data_type, 0, 0), (data_type, 1, 0), (data_type, 0, 1), (data_type, 1, 1)]
+		for N_t in N_arr: 
+			if N_t not in tok2id:
+				id2tok[len(tok2id)] = N_t
+				tok2id[N_t] = len(tok2id)
 
-	print top_terminal_names
-	print non_terminal_types 
-
-	with open('terminal_embeddings_idx.pickle', 'wb') as counts_pickle:
+	print "saving top terminal nodes to file.... format is: id -> count"
+	with open('top_terminal_nodes.pickle', 'wb') as counts_pickle:
 		pickle.dump(top_terminals, counts_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
+	print "saving non terminal types to file.... format is: type -> number (num isn't relevant)"
 	with open('non_terminal_types.pickle', 'wb') as non_term_pickle:
 		pickle.dump(non_terminal_types, non_term_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
-	# print "DONE"
-	# print terminal_counts
+	print "saving tok2id to file... format is: token -> id (should include all terminal nodes with a embedding and all nonterminal nodes)"
+	with open('tok2id.pickle', 'wb') as tok2id_pickle:
+		pickle.dump(tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
-def get_terminal_count(data, terminal_counts, non_terminal_types, tok2id):		
+	print "saving id2tok to file... format is: id -> token (should include all terminal nodes with a embedding and all nonterminal nodes)"
+	with open('id2tok.pickle', 'wb') as id2tok_pickle:
+		pickle.dump(id2tok, id2tok_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+
+def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWordVectors):		
 	T_i = "EMPTY"
 	v = data.get("value", False) 
 	if v:
@@ -53,31 +105,17 @@ def get_terminal_count(data, terminal_counts, non_terminal_types, tok2id):
 			v = '<NON_ASCII>'
 		T_i = v
 
-	N_arr = [(data["type"], 0, 0), (data["type"], 1, 0), (data["type"], 0, 1), (data["type"], 1, 1)]
-	for N_t in N_arr: 
-		if N_t not in tok2id:
-			tok2id[N_t] = len(tok2id)
-		if tok2id[N_t] not in non_terminal_types:
-			non_terminal_types[tok2id[N_t]] = len(non_terminal_types)
-		
-	if T_i not in tok2id:
-		tok2id[T_i] = len(tok2id)
-	terminal_counts[tok2id[T_i]] += 1
+	if T_i in allWordVectors:
+		if T_i not in tok2id:
+			id2tok[len(tok2id)] = T_i
+			tok2id[T_i] = len(tok2id)
 
+	N_type = data["type"]
+	if N_type not in non_terminal_types:
+		non_terminal_types[N_type] = len(non_terminal_types)
+		
+	terminal_counts[tok2id[T_i]] += 1
 	return 
 
-def embeddings_matrix():
-	build_embedding_counts()
-	#embeddings[0] = non common terminal nodes
-	#embeddings[1-50000] = common terminal nodes - mapping of terminal node to index can be found from top_terminal_names
-	#embeddings[50000-50200] = non-terminal nodes
-	#NEED TO IMPORT NP
-	embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
-
-
-#data_util.py from assign3 -- for load embeddings
-#build 50,000 X J (1500) random numbers from 0-1 matrix for T
-#build 97 X J (1500) random numbers from 0-1 matrix for N
-#save those to a pickle
-#save top 50,000 T to a pickle
-embeddings_matrix()
+build_embedding_counts()
+buildSmallGloveMatrix()
