@@ -24,7 +24,7 @@ def buildSmallGloveMatrix():
 		if key in allGloveVectors:
 			wordVectors[val] = allGloveVectors[key]
 		else:
-			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=xnp.float32)
 
 	with open('wordVectors.pickle', 'wb') as pkl:
 		pickle.dump(wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
@@ -51,6 +51,7 @@ def loadWordVectors(filepath=GLOVE_FILE_PATH, dimensions=50):
 
 def build_embedding_counts():
 	allWordVectors = saveWordVectors()
+	print "build initial large word vector dictionary..."
 	terminal_counts = Counter()
 	non_terminal_types = {}
 	tok2id = {}
@@ -59,7 +60,7 @@ def build_embedding_counts():
 	id2tok[len(tok2id)] = UNK
 	tok2id[UNK] = len(tok2id)
 
-	with open('../../data/programs_training.json', 'r') as f:
+	with open('../data/programs_training.json', 'r') as f:
 		for line in f:
 			import json
 			data = json.loads(line)
@@ -109,12 +110,13 @@ def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWor
 		if T_i not in tok2id:
 			id2tok[len(tok2id)] = T_i
 			tok2id[T_i] = len(tok2id)
+		terminal_counts[tok2id[T_i]] += 1
 
 	N_type = data["type"]
 	if N_type not in non_terminal_types:
 		non_terminal_types[N_type] = len(non_terminal_types)
 		
-	terminal_counts[tok2id[T_i]] += 1
+	
 	return 
 
 build_embedding_counts()
