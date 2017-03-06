@@ -17,7 +17,7 @@ python eval_split.py
 ```
 
 ##Train Glove Vectors
-Step 1: Clone Glove (clone this repository outside of your code_completion directory: https://github.com/stanfordnlp/GloVe)
+Step 1: Clone Glove (clone this repository outside of your code_completion directory)
 ```
 $ git clone http://github.com/stanfordnlp/glove
 $ cd glove && make
