@@ -32,3 +32,8 @@ Step 3: Train Glove
 ```
 $ ./trainGlove.sh
 ```
+
+Step 4: Build the embeddings
+```
+$ python embeddings.py
+```
