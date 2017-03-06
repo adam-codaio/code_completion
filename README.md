@@ -15,3 +15,25 @@ tar xzvf data.tar.gz
 cd utils
 python eval_split.py
 ```
+
+##Train Glove Vectors
+Step 1: Clone Glove (clone this repository outside of your code_completion directory)
+```
+$ git clone http://github.com/stanfordnlp/glove
+$ cd glove && make
+```
+
+Step 2: Build Word Corpus 
+```
+$ python build_glove_corpus.py
+```
+
+Step 3: Train Glove
+```
+$ ./trainGlove.sh
+```
+
+Step 4: Build the embeddings
+```
+$ python embeddings.py
+```
