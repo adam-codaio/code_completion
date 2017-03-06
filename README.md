@@ -14,6 +14,7 @@ tar xzvf data.tar.gz
 //Splits the eval set into an eval and dev set
 cd utils
 python eval_split.py
+```
 
 ##Train Glove Vectors
 Step 1: Clone Glove (clone this repository outside of your code_completion directory: https://github.com/stanfordnlp/GloVe)
@@ -25,4 +26,4 @@ $ python build_glove_corpus.py
 
 Step 3: Train Glove
 $ ./trainGlove.sh
-```
+
