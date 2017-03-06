@@ -13,19 +13,31 @@ def saveWordVectors():
 		pickle.dump(allWordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 	return allWordVectors
 
-def buildSmallGloveMatrix():
+def loadSmallGloveMatrix():
+	with open('wordVectors.pickle', 'rb') as handle:
+		wordVectors = pickle.load(handle)
+
+	print "size of word vector embeddings: ", wordVectors.shape
+
+def buildSmallGloveMatrix(dimensions=50):
 	with open('tok2id.pickle', 'rb') as handle:
 		tok2id = pickle.load(handle)
 	with open('allGloveVectors.pickle', 'rb') as handle:
 		allGloveVectors = pickle.load(handle)
 
+	numUnseen = 0
 	wordVectors = np.zeros((len(tok2id), dimensions))
 	for key, val in tok2id.items():
 		if key in allGloveVectors:
+			# print "existing token: ", key
 			wordVectors[val] = allGloveVectors[key]
 		else:
-			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=xnp.float32)
-
+			# print "new token: ", key
+			numUnseen += 1
+			if numUnseen % 10 == 0:
+				print "number unseen tokens: ", numUnseen
+			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+	print "final number of unseen tokens: ", numUnseen
 	with open('wordVectors.pickle', 'wb') as pkl:
 		pickle.dump(wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -121,3 +133,4 @@ def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWor
 
 build_embedding_counts()
 buildSmallGloveMatrix()
+loadSmallGloveMatrix()
