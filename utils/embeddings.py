@@ -5,24 +5,24 @@ from tree_utils import ast_to_lcrs, tree_traversal
 # from code_comp_utils import vectorize, read_json, create_tok2id
 
 UNK = "<UNK>"
-GLOVE_FILE_PATH = './glove/vectors.txt'
+GLOVE_FILE_PATH = '../data/vectors.txt'
 
 def saveWordVectors():
 	allWordVectors = loadWordVectors()
-	with open('allGloveVectors.pickle', 'wb') as pkl:
+	with open('../data/allGloveVectors.pickle', 'wb') as pkl:
 		pickle.dump(allWordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 	return allWordVectors
 
 def loadSmallGloveMatrix():
-	with open('wordVectors.pickle', 'rb') as handle:
+	with open('../data/wordVectors.pickle', 'rb') as handle:
 		wordVectors = pickle.load(handle)
 
 	print "size of word vector embeddings: ", wordVectors.shape
 
 def buildSmallGloveMatrix(dimensions=50):
-	with open('tok2id.pickle', 'rb') as handle:
+	with open('../data/tok2id.pickle', 'rb') as handle:
 		tok2id = pickle.load(handle)
-	with open('allGloveVectors.pickle', 'rb') as handle:
+	with open('../data/allGloveVectors.pickle', 'rb') as handle:
 		allGloveVectors = pickle.load(handle)
 
 	numUnseen = 0
@@ -38,7 +38,7 @@ def buildSmallGloveMatrix(dimensions=50):
 				print "number unseen tokens: ", numUnseen
 			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
 	print "final number of unseen tokens: ", numUnseen
-	with open('wordVectors.pickle', 'wb') as pkl:
+	with open('../data/wordVectors.pickle', 'wb') as pkl:
 		pickle.dump(wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -93,19 +93,19 @@ def build_embedding_counts():
 				tok2id[N_t] = len(tok2id)
 
 	print "saving top terminal nodes to file.... format is: id -> count"
-	with open('top_terminal_nodes.pickle', 'wb') as counts_pickle:
+	with open('../data/top_terminal_nodes.pickle', 'wb') as counts_pickle:
 		pickle.dump(top_terminals, counts_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving non terminal types to file.... format is: type -> number (num isn't relevant)"
-	with open('non_terminal_types.pickle', 'wb') as non_term_pickle:
+	with open('../data/non_terminal_types.pickle', 'wb') as non_term_pickle:
 		pickle.dump(non_terminal_types, non_term_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving tok2id to file... format is: token -> id (should include all terminal nodes with a embedding and all nonterminal nodes)"
-	with open('tok2id.pickle', 'wb') as tok2id_pickle:
+	with open('../data/tok2id.pickle', 'wb') as tok2id_pickle:
 		pickle.dump(tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving id2tok to file... format is: id -> token (should include all terminal nodes with a embedding and all nonterminal nodes)"
-	with open('id2tok.pickle', 'wb') as id2tok_pickle:
+	with open('../data/id2tok.pickle', 'wb') as id2tok_pickle:
 		pickle.dump(id2tok, id2tok_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWordVectors):		
