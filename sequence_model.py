@@ -9,6 +9,7 @@ import logging
 import tensorflow as tf
 from lstm_util import Progbar, get_minibatch
 from model import Model
+import numpy as np
 #from defs import LBLS
 
 logger = logging.getLogger("lstm-sequence")
@@ -26,6 +27,7 @@ class SequenceModel(Model):
         self.report = report
         self.debug = True
         self.train_size = 100000
+	self.dev_size = 20000
         self.debug_size = 500
 
     def preprocess_sequence_data(self, examples):
@@ -46,7 +48,7 @@ class SequenceModel(Model):
         raise NotImplementedError("Each Model must re-implement this method.")
 
 
-    def evaluate(self, sess, examples, examples_raw):
+    def evaluate(self, sess, data_file, size):
         """Evaluates model performance on @examples.
 
         This function uses the model to predict labels for @examples and constructs a confusion matrix.
@@ -60,7 +62,7 @@ class SequenceModel(Model):
         """
 	
         correct_preds, total_correct, total_preds = 0., 0., 0.
-        for _, labels, labels_  in self.output(sess, examples_raw, examples):
+        for labels, labels_ in self.output(sess, data_file, size):
 	    correct_preds += (labels == labels_)
 	    total_preds += 1
 	    '''
@@ -82,23 +84,28 @@ class SequenceModel(Model):
         num_train = self.train_size if self.debug else self.debug_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
         with open(train_file, 'r') as f:
-            more = True
             i = 0
             num_examples = num_train
-            while not more and num_examples > 0:
-                batch, more = get_minibatch(f, self.config.batch_size)
+            while num_examples > 0:
+		if num_examples - self.config.batch_size > 0:
+		    next_batch = self.config.batch_size
+		else:
+		    next_batch = num_examples
+                b = get_minibatch(f, self.config.batch_size)
                 i += 1
-                batch = self.preprocess_sequence_data(batch)
-                num_examples -= len(batch)
+                b = self.preprocess_sequence_data(b)
+		batch = []
+		for col in zip(*b):
+       	 	    batch = [np.array(col) for col in zip(*b)]
+                num_examples -= next_batch
                 loss = self.train_on_batch(sess, *batch)
                 prog.update(i + 1, [("train loss", loss)])
                 if self.report: self.report.log_train_loss(loss)
             print("")
 
         logger.info("Evaluating on development data")
-        #TODO: fix evaluate
-        entity_scores = []
-        #entity_scores = self.evaluate(sess, dev_set, dev_set_raw)
+	dev_size = self.dev_size if self.debug else self.debug_size / 5.
+        entity_scores = self.evaluate(sess, dev_file, dev_size)
         
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
@@ -109,22 +116,35 @@ class SequenceModel(Model):
         #return f1
 	return entity_scores
 
-    def output(self, sess, inputs_raw, inputs=None):
+    def output(self, sess, input_file, size):
         """
         Reports the output of the model on examples (uses helper to featurize each example).
         """
-        if inputs is None:
-            inputs = self.preprocess_sequence_data(inputs_raw)
 
         preds = []
-        prog = Progbar(target=1 + int(len(inputs) / self.config.batch_size))
-        for i, batch in enumerate(minibatches(inputs, self.config.batch_size, shuffle=False)):
-            # Ignore predict
-            batch = batch[:1] + batch[2:]
-            preds_ = self.predict_on_batch(sess, *batch)
-            preds += list(preds_)
-            prog.update(i + 1, [])
-        return self.consolidate_predictions(inputs_raw, inputs, preds)
+        prog = Progbar(target=1 + int(size / self.config.batch_size))
+	with open (input_file, 'r') as f:
+	    i = 0
+            num_examples = size
+	    while num_examples > 0:
+		if num_examples - self.config.batch_size > 0:
+		    next_batch = self.config.batch_size
+		else:
+		    next_batch = num_examples
+	        b = get_minibatch(f, next_batch)
+	        i += 1
+	        b = self.preprocess_sequence_data(b)
+		batch = []
+                for col in zip(*b):
+                    batch = [np.array(col) for col in zip(*b)]
+                num_examples -= next_batch
+                # Ignore predict
+                batch = batch[:1] + batch[2:]
+            	preds_ = self.predict_on_batch(sess, *batch)
+           	preds += list(preds_)
+            	prog.update(i + 1, [])
+
+        return self.consolidate_predictions(input_file, preds)
 
     def fit(self, sess, saver, train_file, dev_file):
         best_score = 0.

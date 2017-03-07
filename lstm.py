@@ -38,12 +38,12 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 50200
-    terminal_vocab = 50200
+    non_terminal_vocab = 217770
+    terminal_vocab = 217770
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 80
+    batch_size = 20
     n_epochs = 1
     max_grad_norm = 5.
     lr = 0.001
@@ -252,16 +252,17 @@ class LSTMModel(SequenceModel):
 
         return pad_sequences(examples, self.max_length, self.config.terminal_pred)
 
-    def consolidate_predictions(self, examples_raw, examples, preds):
+    def consolidate_predictions(self, examples_file, preds):
         """Batch the predictions into groups of sentence length.
         """
-        assert len(examples_raw) == len(examples)
-        assert len(examples_raw) == len(preds)
 
         ret = []
-        for i, (code_snippet, labels) in enumerate(examples_raw):
-            labels_ = preds[i] # only select elements of mask.
-            ret.append([code_snippet, labels[0], labels_])
+	with open(examples_file, 'r') as f:
+	    i = 0
+	    for line in f:
+	        _, label = tuple(eval(line.strip))
+	        label_ = preds[i]
+	        ret.append([label[0], label_])
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
