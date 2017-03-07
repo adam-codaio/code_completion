@@ -6,42 +6,11 @@ from tree_utils import ast_to_lcrs, tree_traversal
 # from code_comp_utils import vectorize, read_json, create_tok2id
 
 UNK = "<UNK>"
+EMPTY = "<EMPTY>"
 GLOVE_FILE_PATH = '../data/vectors.txt'
 
 def saveWordVectors():
-	allWordVectors = loadWordVectors()
-	with open('../data/allGloveVectors.pickle', 'wb') as pkl:
-		pickle.dump(allWordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
-	return allWordVectors
-
-def loadSmallGloveMatrix():
-	with open('../data/wordVectors.pickle', 'rb') as handle:
-		wordVectors = pickle.load(handle)
-
-	print "size of word vector embeddings: ", wordVectors.shape
-
-def buildSmallGloveMatrix(dimensions=50):
-	with open('../data/tok2id.pickle', 'rb') as handle:
-		tok2id = pickle.load(handle)
-	with open('../data/allGloveVectors.pickle', 'rb') as handle:
-		allGloveVectors = pickle.load(handle)
-
-	numUnseen = 0
-	wordVectors = np.zeros((len(tok2id), dimensions))
-	for key, val in tok2id.items():
-		if key in allGloveVectors:
-			# print "existing token: ", key
-			wordVectors[val] = allGloveVectors[key]
-		else:
-			# print "new token: ", key
-			numUnseen += 1
-			if numUnseen % 10 == 0:
-				print "number unseen tokens: ", numUnseen
-			wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
-	print "final number of unseen tokens: ", numUnseen
-	with open('../data/wordVectors.pickle', 'wb') as pkl:
-		pickle.dump(wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
-
+    return loadWordVectors()
 
 def loadWordVectors(filepath=GLOVE_FILE_PATH, dimensions=50):
     """Read pretrained GloVe vectors"""
@@ -84,13 +53,28 @@ def build_embedding_counts():
 
 	top_terminals = terminal_counts.most_common(50000)
 
+        lil_tok2id = {}
+        lil_id2tok = {}
+        lil_wordVectors = []
+        for terminal, _ in top_terminals:
+            lil_id2tok[len(lil_tok2id)] = terminal
+            lil_tok2id[terminal] = len(lil_tok2id)
+            lil_wordVectors.append(allWordVectors[tok2id[terminal]])
+
+        lil_id2tok[len(lil_tok2id)] = UNK
+        lil_tok2id[UNK] = len(lil_tok2id)
+        print "UNK id is: %d" % lil_tok2id[UNK]
+        lil_id2tok[len(lil_tok2id)] = EMPTY
+        lil_tok2id[EMPTY] = len(lil_tok2id)
+        print "EMPTY id is %d" % lil_tok2id[EMPTY]
+
 	non_terminals = {}
 	for data_type in non_terminal_types:
 		N_arr = [(data_type, 0, 0), (data_type, 1, 0), (data_type, 0, 1), (data_type, 1, 1)]
 		for N_t in N_arr: 
-			if N_t not in tok2id:
-				id2tok[len(tok2id)] = N_t
-				tok2id[N_t] = len(tok2id)
+			if N_t not in lil_tok2id:
+				lil_id2tok[len(lil_tok2id)] = N_t
+				lil_tok2id[N_t] = len(lil_tok2id)
 
 	print "saving top terminal nodes to file.... format is: id -> count"
 	with open('../data/top_terminal_nodes.pickle', 'wb') as counts_pickle:
@@ -102,11 +86,15 @@ def build_embedding_counts():
 
 	print "saving tok2id to file... format is: token -> id (should include all terminal nodes with a embedding and all nonterminal nodes)"
 	with open('../data/tok2id.pickle', 'wb') as tok2id_pickle:
-		pickle.dump(tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+		pickle.dump(lil_tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving id2tok to file... format is: id -> token (should include all terminal nodes with a embedding and all nonterminal nodes)"
 	with open('../data/id2tok.pickle', 'wb') as id2tok_pickle:
-		pickle.dump(id2tok, id2tok_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+		pickle.dump(lil_id2tok, id2tok_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+	
+        print "saving reduced word vectors, total: %d" % len(lil_wordVectors)
+        with open('../data/wordVectors.pickle', 'wb') as pkl:
+		pickle.dump(lil_wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWordVectors):		
 	T_i = "EMPTY"
@@ -132,5 +120,3 @@ def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWor
 	return 
 
 build_embedding_counts()
-buildSmallGloveMatrix()
-loadSmallGloveMatrix()
