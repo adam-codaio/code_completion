@@ -41,7 +41,7 @@ class Config:
     non_terminal_vocab = 50200
     terminal_vocab = 50200
     dropout = 0.5
-    embed_size = 1500
+    embed_size = 50
     hidden_size = embed_size
     batch_size = 80
     n_epochs = 1
@@ -105,7 +105,7 @@ class LSTMModel(SequenceModel):
 	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
-        self.dropout_placeholder = tf.placeholder(tf.float32)
+        self.dropout_placeholder = tf.placeholder(tf.float64)
 
     def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1):
         """Creates the feed_dict for the dependency parser.
@@ -178,16 +178,16 @@ class LSTMModel(SequenceModel):
 
         # Define U and b2 as variables.
         # Initialize state as vector of zeros.
-        xinit = tf.contrib.layers.xavier_initializer()
+        xinit = tf.contrib.layers.xavier_initializer(dtype=tf.float64)
         if not self.config.terminal_pred:
             output_size = self.config.non_terminal_vocab
         else:
             output_size = self.config.terminal_vocab
         U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
-                            initializer=xinit)
-        b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0))
-	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
-        h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
+                            initializer=xinit, dtype=tf.float64)
+        b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
+	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size], dtype=tf.float64)
+        h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size], dtype=tf.float64)
 	state_tuple = (c_t, h_t)
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
@@ -295,7 +295,7 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     nt = True if args.non_terminal == 'non_terminal' else False
-    code_comp = get_code_comp()
+    code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
@@ -332,6 +332,7 @@ def do_train(args):
                 #output = zip(sentences, labels, predictions)
 
                 with open(model.config.conll_output, 'w') as f:
+					pass
                     #Commenting this out for now as I don't think it works for our data
                     #write_conll(f, output)
                 with open(model.config.eval_output, 'w') as f:

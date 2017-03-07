@@ -79,8 +79,8 @@ class SequenceModel(Model):
 
 
     def run_epoch(self, sess, train_file, dev_file):
-        num_train = config.train_size if config.debug else config.debug_size
-        prog = Progbar(target=1 + num_train / self.config.batch_size))
+        num_train = self.train_size if self.debug else self.debug_size
+        prog = Progbar(target=1 + num_train / self.config.batch_size)
         with open(train_file, 'r') as f:
             more = True
             i = 0

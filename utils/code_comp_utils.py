@@ -21,17 +21,17 @@ class Config(object):
     train_file = 'programs_training.json'
     dev_file = 'programs_dev.json'
     test_file = 'programs_test.json'
-    tok2id_file = '/pickles/tok2id.pickle'
-    id2tok_file = '/pickles/id2tok.pickle'
-    embeddings_file = '/pickles/wordVectors.pickle'
+    tok2id_file = 'pickles/tok2id.pickle'
+    id2tok_file = 'pickles/id2tok.pickle'
+    embeddings_file = 'pickles/wordVectors.pickle'
 
 config = Config()
 
 class CodeCompleter(object):
-    def __init__(self, dataset):
-        with open(os.path.join(config.data_path, tok2id_file), 'rb') as f:
+    def __init__(self):
+        with open(os.path.join(config.data_path, config.tok2id_file), 'rb') as f:
             self.tok2id = pickle.load(f)
-        with open(os.path.join(config.data_path, id2tok_file), 'rb') as f:
+        with open(os.path.join(config.data_path, config.id2tok_file), 'rb') as f:
             self.id2tok = pickle.load(f)
   
 def vectorize(examples, tok2id):
@@ -108,7 +108,7 @@ def create_tok2id(dataset):
 def get_embeddings():
     print "Loading embeddings...",
     start = time.time()
-    with open(os.path.join(config.data_path, config.embeddings), 'rb') as f:
+    with open(os.path.join(config.data_path, config.embeddings_file), 'rb') as f:
         embeddings = pickle.load(f)
     print "took {:.2f} seconds".format(time.time() - start)
     return embeddings
