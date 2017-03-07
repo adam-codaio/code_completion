@@ -47,6 +47,9 @@ class Config:
     n_epochs = 1
     max_grad_norm = 5.
     lr = 0.001
+    train_file = 'data/train_vectorized.txt'
+    dev_file = 'data/dev_vectorized.txt'
+    test_file = 'data/test_vectorized.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -246,6 +249,7 @@ class LSTMModel(SequenceModel):
         return train_op
 
     def preprocess_sequence_data(self, examples):
+
         return pad_sequences(examples, self.max_length, self.config.terminal_pred)
 
     def consolidate_predictions(self, examples_raw, examples, preds):
@@ -292,10 +296,7 @@ def do_train(args):
     config = Config(args)
     nt = True if args.non_terminal == 'non_terminal' else False
     code_comp = get_code_comp()
-    # code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
    
-    train = train[:320]
-    dev = dev[:320]
     embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
     helper = ModelHelper(code_comp.tok2id, 49)
@@ -319,7 +320,7 @@ def do_train(args):
 
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver, train, dev)
+            model.fit(session, saver, config.train_file, config.dev_file)
             if report:
                 report.log_output(model.output(session, dev))
                 report.save()
@@ -338,6 +339,7 @@ def do_train(args):
                         print_sentence(f, sentence, labels, predictions)
 
 def do_evaluate(args):
+    '''I don't think this should be working yet'''
     config = Config(args.model_path)
     helper = ModelHelper.load(args.model_path)
     input_data = read_conll(args.data)

@@ -7,7 +7,7 @@ import pdb
 import logging
 
 import tensorflow as tf
-from lstm_util import Progbar, minibatches
+from lstm_util import Progbar, get_minibatch
 from model import Model
 #from defs import LBLS
 
@@ -24,6 +24,9 @@ class SequenceModel(Model):
         self.helper = helper
         self.config = config
         self.report = report
+        self.debug = True
+        self.train_size = 100000
+        self.debug_size = 500
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -75,16 +78,28 @@ class SequenceModel(Model):
 	return correct_preds/total_preds	
 
 
-    def run_epoch(self, sess, train_examples, dev_set, train_examples_raw, dev_set_raw):
-        prog = Progbar(target=1 + int(len(train_examples) / self.config.batch_size))
-        for i, batch in enumerate(minibatches(train_examples, self.config.batch_size)):
-            loss = self.train_on_batch(sess, *batch)
-            prog.update(i + 1, [("train loss", loss)])
-            if self.report: self.report.log_train_loss(loss)
-        print("")
+    def run_epoch(self, sess, train_file, dev_file):
+        num_train = config.train_size if config.debug else config.debug_size
+        prog = Progbar(target=1 + num_train / self.config.batch_size))
+        with open(train_file, 'r') as f:
+            more = True
+            i = 0
+            num_examples = num_train
+            while not more and num_examples > 0:
+                batch, more = get_minibatch(f, self.config.batch_size)
+                i += 1
+                batch = self.preprocess_sequence_data(batch)
+                num_examples -= len(batch)
+                loss = self.train_on_batch(sess, *batch)
+                prog.update(i + 1, [("train loss", loss)])
+                if self.report: self.report.log_train_loss(loss)
+            print("")
 
         logger.info("Evaluating on development data")
-        entity_scores = self.evaluate(sess, dev_set, dev_set_raw)
+        #TODO: fix evaluate
+        entity_scores = []
+        #entity_scores = self.evaluate(sess, dev_set, dev_set_raw)
+        
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
         #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
@@ -111,15 +126,15 @@ class SequenceModel(Model):
             prog.update(i + 1, [])
         return self.consolidate_predictions(inputs_raw, inputs, preds)
 
-    def fit(self, sess, saver, train_examples_raw, dev_set_raw):
+    def fit(self, sess, saver, train_file, dev_file):
         best_score = 0.
 	
-        train_examples = self.preprocess_sequence_data(train_examples_raw)
-        dev_set = self.preprocess_sequence_data(dev_set_raw)
+        #train_examples = self.preprocess_sequence_data(train_examples_raw)
+        #dev_set = self.preprocess_sequence_data(dev_set_raw)
 
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
-            score = self.run_epoch(sess, train_examples, dev_set, train_examples_raw, dev_set_raw)
+            score = self.run_epoch(sess, train_file, dev_file)
             if score > best_score:
                 best_score = score
                 if saver:

@@ -233,6 +233,16 @@ def get_minibatches(data, minibatch_size, shuffle=True):
         yield [minibatch(d, minibatch_indices) for d in data] if list_data \
             else minibatch(data, minibatch_indices)
 
+def get_minibatch(data_file, batch_size):
+    batch = []
+    remaining = batch_size
+    for line in data_file:
+        data = eval(line.strip())
+        batches.append(data)
+        batch_size -= 1
+        if batch_size == 0:
+            break
+    return batches, batch_size == 0
 
 def minibatch(data, minibatch_idx):
     return data[minibatch_idx] if type(data) is np.ndarray else [data[i] for i in minibatch_idx]
