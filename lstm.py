@@ -260,7 +260,7 @@ class LSTMModel(SequenceModel):
 	with open(examples_file, 'r') as f:
 	    i = 0
 	    for line in f:
-	        _, label = tuple(eval(line.strip))
+	        _, label = tuple(eval(line.strip()))
 	        label_ = preds[i]
 	        ret.append([label[0], label_])
         return ret
@@ -327,18 +327,18 @@ def do_train(args):
                 report.save()
             else:
                 # Save predictions in a text file.
-                output = model.output(session, dev)
-                #sentences, labels, predictions = zip(*output)
-                #predictions = [[LBLS[l] for l in preds] for preds in predictions]
-                #output = zip(sentences, labels, predictions)
+                # output = model.output(session, dev)
+                # sentences, labels, predictions = zip(*output)
+                # predictions = [[LBLS[l] for l in preds] for preds in predictions]
+                # output = zip(sentences, labels, predictions)
 
-                with open(model.config.conll_output, 'w') as f:
-					pass
+                #with open(model.config.conll_output, 'w') as f:
+		    # pass
                     #Commenting this out for now as I don't think it works for our data
                     #write_conll(f, output)
-                with open(model.config.eval_output, 'w') as f:
-                    for sentence, labels, predictions in output:
-                        print_sentence(f, sentence, labels, predictions)
+                #with open(model.config.eval_output, 'w') as f:
+                    #for sentence, labels, predictions in output:
+                        #print_sentence(f, sentence, labels, predictions)
 
 def do_evaluate(args):
     '''I don't think this should be working yet'''
