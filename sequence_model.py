@@ -81,7 +81,7 @@ class SequenceModel(Model):
 
 
     def run_epoch(self, sess, train_file, dev_file):
-        num_train = self.train_size if self.debug else self.debug_size
+        num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
         with open(train_file, 'r') as f:
             i = 0
@@ -91,7 +91,7 @@ class SequenceModel(Model):
 		    next_batch = self.config.batch_size
 		else:
 		    next_batch = num_examples
-                b = get_minibatch(f, self.config.batch_size)
+                b = get_minibatch(f, next_batch)
                 i += 1
                 b = self.preprocess_sequence_data(b)
 		batch = []
@@ -104,7 +104,7 @@ class SequenceModel(Model):
             print("")
 
         logger.info("Evaluating on development data")
-	dev_size = self.dev_size if self.debug else self.debug_size / 5.
+	dev_size = self.debug_size / 5. if self.debug else self.dev_size
         entity_scores = self.evaluate(sess, dev_file, dev_size)
         
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
