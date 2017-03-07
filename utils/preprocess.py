@@ -2,37 +2,38 @@ import pickle
 from tree_utils import ast_to_lcrs, tree_traversal
 from code_comp_utils import vectorize, read_json, create_tok2id
 
+def vectorize_set(dataset, tok2id, path):
+    print "about to vectorize the %s set" % path
+    vectorized_dataset = vectorize(dataset, tok2id)
+    print "vectorized the %s set" % path
+    with open('../data/' + path + '_vectorized.txt', 'w') as f:
+        for data in vectorized_dataset:
+            f.write(repr(data) + '\n')
+    print "wrote the %s set" % path
+
 def main():
+    print "reading the training set"
     train_set = read_json('../data/programs_training.json')
-    print "read the training set!"
+    print "read the training set"
 
-    print "about to create the tok2id mapping"
-    tok2id = create_tok2id(train_set)
-    print "created the tok2id mapping!"
-    with open('../data/tok2id.pickle', 'wb') as f:
-        pickle.dump(tok2id, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print "dumped the tok2id"
+    print "fetching the tok2id"
+    with open('../data/pickles/tok2id.pickle', 'rb') as f:
+        tok2id = pickle.load(f)
+    print "read the tok2id mapping"
 
-    print "about to vectorize the train set"
-    train_set = vectorize(train_set, tok2id)
-    print "vectorized the train set"
-    with open('../data/train_vectorized.pickle', 'wb') as f:
-        pickle.dump(train_set, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print "dumped the train set"
+    vectorize_set(train_set, tok2id, 'train')
 
-    print "about to vectorize the dev set"
-    dev_set = vectorize(read_json('../data/programs_dev.json'), tok2id)
-    print "vectorized the dev set"
-    with open('../data/dev_vectorized.pickle', 'wb') as f:
-        pickle.dump(dev_set, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print "dumped the dev set"
+    print "reading the dev set"
+    dev_set = read_json('../data/programs_dev.json')
+    print "read the dev set"
 
-    print "about to vectorize the test set"
-    test_set = vectorize(read_json('../data/programs_test.json'), tok2id)
-    print "vectorized the test set"
-    with open('../data/test_vectorized.pickle', 'wb') as f:
-        pickle.dump(test_set, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print "dumped the test set"
+    vectorize_set(dev_set, tok2id, 'dev')
+
+    print "reading the test set"
+    test_set = read_json('../data/programs_test.json')
+    print "read the test set"
+
+    vectorize_set(test_set, tok2id, 'test')
 
 if __name__ == "__main__":
     main()

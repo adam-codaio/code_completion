@@ -33,7 +33,11 @@ Step 3: Train Glove
 $ ./trainGlove.sh
 ```
 
-Step 4: Build the embeddings
+##Preparing for Training
+
 ```
+$ cd utils
 $ python embeddings.py
+$ python preprocess.py
 ```
+
