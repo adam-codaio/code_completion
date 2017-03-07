@@ -291,10 +291,12 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     nt = True if args.non_terminal == 'non_terminal' else False
-    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
+    code_comp = get_code_comp()
+    # code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
+   
     train = train[:320]
     dev = dev[:320]
-    embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
+    embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
     helper = ModelHelper(code_comp.tok2id, 49)
     helper.save(config.output_path)

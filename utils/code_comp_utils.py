@@ -21,7 +21,9 @@ class Config(object):
     train_file = 'programs_training.json'
     dev_file = 'programs_dev.json'
     test_file = 'programs_test.json'
-    tok2id_file = 'tok2id.pickle'
+    tok2id_file = '/pickles/tok2id.pickle'
+    id2tok_file = '/pickles/id2tok.pickle'
+    embeddings_file = '/pickles/wordVectors.pickle'
 
 config = Config()
 
@@ -29,6 +31,8 @@ class CodeCompleter(object):
     def __init__(self, dataset):
         with open(os.path.join(config.data_path, tok2id_file), 'rb') as f:
             self.tok2id = pickle.load(f)
+        with open(os.path.join(config.data_path, id2tok_file), 'rb') as f:
+            self.id2tok = pickle.load(f)
   
 def vectorize(examples, tok2id):
     vec_examples = []
@@ -100,6 +104,21 @@ def create_tok2id(dataset):
     tok2id[UNK] = len(tok2id)
 
     return tok2id
+
+def get_embeddings():
+    print "Loading embeddings...",
+    start = time.time()
+    with open(os.path.join(config.data_path, config.embeddings), 'rb') as f:
+        embeddings = pickle.load(f)
+    print "took {:.2f} seconds".format(time.time() - start)
+    return embeddings
+
+def get_code_comp():
+    print "Building Code Completer...",
+    start = time.time()
+    code_comp = CodeCompleter()
+    print "took {:.2f} seconds".format(time.time() - start)
+    return code_comp
 
 def load_and_preprocess_data(nt_pred, reduced=True):
     config.nt_pred = nt_pred
