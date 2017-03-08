@@ -38,8 +38,8 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 50177
-    terminal_vocab = 50177
+    non_terminal_vocab = 176
+    terminal_vocab = 50001
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
@@ -48,12 +48,12 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized.txt'
-    train_t = 'data/train_t_vectorized.txt'
+    train_nt = 'data/train_nt_vectorized_small.txt'
+    train_t = 'data/train_t_vectorized_small.txt'
     dev_nt = 'data/dev_nt_vectorized.txt'
     dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized.txt'
-    test_t = 'data/test_t_vectorized.txt'
+    test_nt = 'data/test_nt_vectorized_small.txt'
+    test_t = 'data/test_t_vectorized_small.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -133,6 +133,7 @@ class LSTMModel(SequenceModel):
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
+	    if not self.terminal_pred: labels_batch -= self.terminal_vocab
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
