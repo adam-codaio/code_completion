@@ -38,8 +38,8 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 50177
-    terminal_vocab = 50177
+    non_terminal_vocab = 176
+    terminal_vocab = 50001
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
@@ -133,6 +133,7 @@ class LSTMModel(SequenceModel):
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
+	    if self.config.nt: labels_batch -= self.config.terminal_vocab
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout

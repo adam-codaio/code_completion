@@ -112,7 +112,8 @@ class SequenceModel(Model):
                     batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 # Ignore predict
-                gold_values = [val for label in batch[1] for val in label]
+                offset = self.config.terminal_vocab if self.config.nt else 0
+                gold_values = [val - offset for label in batch[1] for val in label]
                 batch = batch[:1] + batch[2:]
             	preds_ = self.predict_on_batch(sess, *batch)
 
