@@ -64,7 +64,7 @@ def build_embedding_counts():
 	val = len(lil_tok2id)
         lil_id2tok[val] = UNK
         lil_tok2id[UNK] = val
-	lil_wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+	lil_wordVectors.append(np.asarray(np.random.randn(1, 50), dtype=np.float32))
         print "UNK id is: %d" % lil_tok2id[UNK]
 
 	print "dealing wit non terminals"
@@ -76,7 +76,7 @@ def build_embedding_counts():
 				val = len(lil_tok2id)
 				lil_id2tok[val] = N_t
 				lil_tok2id[N_t] = val
-				lil_wordVectors[val] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+				lil_wordVectors.append(np.asarray(np.random.randn(1, 50), dtype=np.float32))
 
 	print "saving top terminal nodes to file.... format is: id -> count"
 	with open('../data/top_terminal_nodes.pickle', 'wb') as counts_pickle:
