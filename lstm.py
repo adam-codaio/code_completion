@@ -43,7 +43,7 @@ class Config:
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 20
+    batch_size = 1000
     n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001

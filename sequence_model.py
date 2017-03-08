@@ -25,12 +25,11 @@ class SequenceModel(Model):
         self.helper = helper
         self.config = config
         self.report = report
-        self.debug = False
-        self.train_size = 100000
-	self.dev_size = 20000
+        self.debug = True
+        self.train_size = 3506782
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 30000
+        self.eval_size = 1011652
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -48,42 +47,6 @@ class SequenceModel(Model):
         process back into the original sequence.
         """
         raise NotImplementedError("Each Model must re-implement this method.")
-
-
-    def evaluate(self, sess, data_file, size):
-        """Evaluates model performance on @examples.
-
-        This function uses the model to predict labels for @examples and constructs a confusion matrix.
-
-        Args:
-            sess: the current TensorFlow session.
-            examples: A list of vectorized input/output pairs.
-            examples: A list of the original input/output sequence pairs.
-        Returns:
-            The F1 score for predicting tokens as named entities.
-        """
-	
-        correct_preds, total_correct, total_preds = 0., 0., 0.
-        for labels, labels_ in self.output(sess, data_file, size):
-            if not self.config.unk and not self.config.nt:
-	        correct_preds += (labels == labels_ and labels != self.config.unk_label)
-            else:
-                correct_preds += (labels == labels_)
-	    total_preds += 1
-	    '''
-            gold = set(labels)
-            pred = set(labels_)
-            correct_preds = len(gold.intersection(pred))
-            total_preds += len(pred)
-            total_correct += len(gold)
-
-        p = correct_preds / total_preds if correct_preds > 0 else 0
-        r = correct_preds / total_correct if correct_preds > 0 else 0
-        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
-        return (p, r, f1)
-	'''
-	return correct_preds/total_preds	
-
 
     def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
@@ -125,12 +88,13 @@ class SequenceModel(Model):
         #return f1
 	return entity_scores
 
-    def output(self, sess, input_file, size):
+    def evaluate(self, sess, input_file, size):
         """
         Reports the output of the model on examples (uses helper to featurize each example).
         """
 
-        preds = []
+        correct_preds, total_preds = 0., 0.
+        
         prog = Progbar(target=1 + int(size / self.config.batch_size))
 	with open (input_file, 'r') as f:
 	    i = 0
@@ -148,12 +112,20 @@ class SequenceModel(Model):
                     batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 # Ignore predict
+                gold_values = [val for label in batch[1] for val in label]
                 batch = batch[:1] + batch[2:]
             	preds_ = self.predict_on_batch(sess, *batch)
-           	preds += list(preds_)
-            	prog.update(i + 1, [])
 
-        return self.consolidate_predictions(input_file, preds)
+                for label, label_ in zip(gold_values, preds_):
+                    if not self.config.unk and not self.config.nt:
+	                correct_preds += (label == label_ and label != self.config.unk_label)
+                    else:
+                        correct_preds += (label == label_)
+                    total_preds += 1
+                
+                prog.update(i + 1, [])
+
+        return correct_preds / total_preds
 
     def fit(self, sess, saver, train_file, eval_file):
         best_score = 0.
