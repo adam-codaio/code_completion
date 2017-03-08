@@ -55,7 +55,7 @@ def process_token_list(token_list, NT):
         for tup in segment[:-1]:
             features.extend(list(tup))
         idx = 0 if NT else 1
-        label = [token_list[-1][idx]]
+        label = [segment[-1][idx]]
         segments.append([features, label])
     return segments
 
