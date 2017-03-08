@@ -52,18 +52,20 @@ def build_embedding_counts():
 
 	top_terminals = terminal_counts.most_common(50000)
 
+	print "building little dictionaries and word vectors"
         lil_tok2id = {}
         lil_id2tok = {}
         lil_wordVectors = []
-        for terminal, _ in top_terminals:
-            lil_id2tok[len(lil_tok2id)] = terminal
-            lil_tok2id[terminal] = len(lil_tok2id)
-            lil_wordVectors.append(allWordVectors[tok2id[terminal]])
+        for terminal_id, _ in top_terminals:
+            lil_id2tok[len(lil_tok2id)] = id2tok[terminal_id]
+            lil_tok2id[id2tok[terminal_id]] = len(lil_tok2id)
+            lil_wordVectors.append(allWordVectors[terminal_id])
 
         lil_id2tok[len(lil_tok2id)] = UNK
         lil_tok2id[UNK] = len(lil_tok2id)
         print "UNK id is: %d" % lil_tok2id[UNK]
 
+	print "dealing wit non terminals"
 	non_terminals = {}
 	for data_type in non_terminal_types:
 		N_arr = [(data_type, 0, 0), (data_type, 1, 0), (data_type, 0, 1), (data_type, 1, 1)]
@@ -112,7 +114,6 @@ def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWor
 	if N_type not in non_terminal_types:
 		non_terminal_types[N_type] = len(non_terminal_types)
 		
-	
 	return 
 
 build_embedding_counts()
