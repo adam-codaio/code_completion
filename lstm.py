@@ -38,15 +38,22 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 50200
-    terminal_vocab = 50200
+    non_terminal_vocab = 50177
+    terminal_vocab = 50177
     dropout = 0.5
-    embed_size = 1500
+    embed_size = 50
     hidden_size = embed_size
-    batch_size = 80
-    n_epochs = 1
+    batch_size = 1000
+    n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
+    unk_label = 50000
+    train_nt = 'data/train_nt_vectorized.txt'
+    train_t = 'data/train_t_vectorized.txt'
+    dev_nt = 'data/dev_nt_vectorized.txt'
+    dev_t = 'data/dev_t_vectorized.txt'
+    test_nt = 'data/test_nt_vectorized.txt'
+    test_t = 'data/test_t_vectorized.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -63,7 +70,7 @@ class Config:
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
-
+        self.results = "results/real_results.txt"
 
 def pad_sequences(data, max_length, terminal_pred):
     """
@@ -102,7 +109,7 @@ class LSTMModel(SequenceModel):
 	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
-        self.dropout_placeholder = tf.placeholder(tf.float32)
+        self.dropout_placeholder = tf.placeholder(tf.float64)
 
     def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1):
         """Creates the feed_dict for the dependency parser.
@@ -175,16 +182,16 @@ class LSTMModel(SequenceModel):
 
         # Define U and b2 as variables.
         # Initialize state as vector of zeros.
-        xinit = tf.contrib.layers.xavier_initializer()
+        xinit = tf.contrib.layers.xavier_initializer(dtype=tf.float64)
         if not self.config.terminal_pred:
             output_size = self.config.non_terminal_vocab
         else:
             output_size = self.config.terminal_vocab
         U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
-                            initializer=xinit)
-        b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0))
-	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
-        h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size])
+                            initializer=xinit, dtype=tf.float64)
+        b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
+	c_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size], dtype=tf.float64)
+        h_t = tf.zeros([tf.shape(x)[0], self.config.hidden_size], dtype=tf.float64)
 	state_tuple = (c_t, h_t)
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
@@ -246,18 +253,20 @@ class LSTMModel(SequenceModel):
         return train_op
 
     def preprocess_sequence_data(self, examples):
+
         return pad_sequences(examples, self.max_length, self.config.terminal_pred)
 
-    def consolidate_predictions(self, examples_raw, examples, preds):
+    def consolidate_predictions(self, examples_file, preds):
         """Batch the predictions into groups of sentence length.
         """
-        assert len(examples_raw) == len(examples)
-        assert len(examples_raw) == len(preds)
 
         ret = []
-        for i, (code_snippet, labels) in enumerate(examples_raw):
-            labels_ = preds[i] # only select elements of mask.
-            ret.append([code_snippet, labels[0], labels_])
+	with open(examples_file, 'r') as f:
+	    i = 0
+	    for line in f:
+	        _, label = tuple(eval(line.strip()))
+	        label_ = preds[i]
+	        ret.append([label[0], label_])
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
@@ -290,11 +299,15 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    nt = True if args.non_terminal == 'non_terminal' else False
-    code_comp, train, dev, test = code_comp_utils.load_and_preprocess_data(nt)
-    train = train[:320]
-    dev = dev[:320]
-    embeddings = np.array(np.random.randn(50200, 1500), dtype=np.float32)
+    config.nt = True if args.non_terminal == 'non_terminal' else False
+    config.unk = True if args.unk == 'unk' else False
+
+    with open(config.results, 'w') as f:
+        f.write("Running experiment with %s and %s\n" % (args.non_terminal, args.unk))
+
+    code_comp = code_comp_utils.get_code_comp()
+   
+    embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
     helper = ModelHelper(code_comp.tok2id, 49)
     helper.save(config.output_path)
@@ -317,25 +330,13 @@ def do_train(args):
 
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver, train, dev)
-            if report:
-                report.log_output(model.output(session, dev))
-                report.save()
+            if config.nt:
+                model.fit(session, saver, config.train_nt, config.test_nt)
             else:
-                # Save predictions in a text file.
-                output = model.output(session, dev)
-                #sentences, labels, predictions = zip(*output)
-                #predictions = [[LBLS[l] for l in preds] for preds in predictions]
-                #output = zip(sentences, labels, predictions)
-
-                with open(model.config.conll_output, 'w') as f:
-                    #Commenting this out for now as I don't think it works for our data
-                    #write_conll(f, output)
-                with open(model.config.eval_output, 'w') as f:
-                    for sentence, labels, predictions in output:
-                        print_sentence(f, sentence, labels, predictions)
+                model.fit(session, saver, config.train_t, config.test_t)
 
 def do_evaluate(args):
+    '''I don't think this should be working yet'''
     config = Config(args.model_path)
     helper = ModelHelper.load(args.model_path)
     input_data = read_conll(args.data)
@@ -418,6 +419,7 @@ if __name__ == "__main__":
     command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
+    command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
     command_parser.set_defaults(func=do_train)
 
     command_parser = subparsers.add_parser('evaluate', help='')

@@ -46,23 +46,23 @@ class LSTMCell(tf.nn.rnn_cell.LSTMCell):
 
             c_t0, h_t0 = state
             
-            xinit = tf.contrib.layers.xavier_initializer()
-            W_i = tf.get_variable("W_i", shape=[self.input_size, self._state_size], initializer=xinit)
-            U_i = tf.get_variable("U_i", shape=[self._state_size, self._state_size], initializer=xinit)
-            b_i = tf.get_variable("b_i", shape=[self._state_size], initializer=tf.constant_initializer(0.0))
+            xinit = tf.contrib.layers.xavier_initializer(dtype=tf.float64)
+            W_i = tf.get_variable("W_i", shape=[self.input_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            U_i = tf.get_variable("U_i", shape=[self._state_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            b_i = tf.get_variable("b_i", shape=[self._state_size], initializer=tf.constant_initializer(0.0), dtype=tf.float64)
 
-            W_f = tf.get_variable("W_f", shape=[self.input_size, self._state_size], initializer=xinit)
-            U_f = tf.get_variable("U_f", shape=[self._state_size, self._state_size], initializer=xinit)
-            b_f = tf.get_variable("b_f", shape=[self._state_size], initializer=tf.constant_initializer(0.0))
+            W_f = tf.get_variable("W_f", shape=[self.input_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            U_f = tf.get_variable("U_f", shape=[self._state_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            b_f = tf.get_variable("b_f", shape=[self._state_size], initializer=tf.constant_initializer(0.0), dtype=tf.float64)
 
-            W_o = tf.get_variable("W_o", shape=[self.input_size, self._state_size], initializer=xinit)
-            U_o = tf.get_variable("U_o", shape=[self._state_size, self._state_size], initializer=xinit)
-            b_o = tf.get_variable("b_o", shape=[self._state_size], initializer=tf.constant_initializer(0.0))
+            W_o = tf.get_variable("W_o", shape=[self.input_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            U_o = tf.get_variable("U_o", shape=[self._state_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            b_o = tf.get_variable("b_o", shape=[self._state_size], initializer=tf.constant_initializer(0.0), dtype=tf.float64)
 
-            W_u = tf.get_variable("W_u", shape=[self.input_size, self._state_size], initializer=xinit)
-            U_u = tf.get_variable("U_u", shape=[self.input_size, self._state_size], initializer=xinit)
-            b_u = tf.get_variable("b_u", shape=[self._state_size], initializer=tf.constant_initializer(0.0))
-       
+            W_u = tf.get_variable("W_u", shape=[self.input_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            U_u = tf.get_variable("U_u", shape=[self.input_size, self._state_size], initializer=xinit, dtype=tf.float64)
+            b_u = tf.get_variable("b_u", shape=[self._state_size], initializer=tf.constant_initializer(0.0), dtype=tf.float64)
+            
             i_t = tf.sigmoid(tf.matmul(inputs,W_i) + tf.matmul(h_t0, U_i) + b_i)
             f_t = tf.sigmoid(tf.matmul(inputs,W_f) + tf.matmul(h_t0, U_f) + b_f)
             o_t = tf.sigmoid(tf.matmul(inputs,W_o) + tf.matmul(h_t0, U_o) + b_o)
