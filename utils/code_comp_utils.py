@@ -77,8 +77,8 @@ def read_json(infile, reduced=False, num_examples=None):
             token_list = tree_traversal(binarized)
             segments_nt = process_token_list(token_list, True)
             segments_t = process_token_list(token_list, False)
-            examples_nt.extend(segments)
-            examples_t.extend(segments)
+            examples_nt.extend(segments_nt)
+            examples_t.extend(segments_t)
             if reduced:
                 num_examples -= 1
                 if num_examples == 0:

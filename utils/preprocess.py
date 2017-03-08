@@ -32,8 +32,8 @@ def test_set(tok2id):
     test_set_nt, test_set_t = read_json('../data/programs_test.json')
     print "read the test set"
 
-    vectorize_set(test_set, tok2id, 'test_nt')
-    vectorize_set(test_set, tok2id, 'test_t')
+    vectorize_set(test_set_nt, tok2id, 'test_nt')
+    vectorize_set(test_set_t, tok2id, 'test_t')
 
 def main():
     print "fetching the tok2id"
