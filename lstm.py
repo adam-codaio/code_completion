@@ -48,12 +48,12 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized_small.txt'
-    train_t = 'data/train_t_vectorized_small.txt'
+    train_nt = 'data/train_nt_vectorized.txt'
+    train_t = 'data/train_t_vectorized.txt'
     dev_nt = 'data/dev_nt_vectorized.txt'
     dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized_small.txt'
-    test_t = 'data/test_t_vectorized_small.txt'
+    test_nt = 'data/test_nt_vectorized.txt'
+    test_t = 'data/test_t_vectorized.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -133,7 +133,7 @@ class LSTMModel(SequenceModel):
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
-	    if not self.terminal_pred: labels_batch -= self.terminal_vocab
+	    if self.config.nt: labels_batch -= self.config.terminal_vocab
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
