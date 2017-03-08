@@ -6,7 +6,6 @@ from tree_utils import ast_to_lcrs, tree_traversal
 # from code_comp_utils import vectorize, read_json, create_tok2id
 
 UNK = "<UNK>"
-EMPTY = "<EMPTY>"
 GLOVE_FILE_PATH = '../data/vectors.txt'
 
 def saveWordVectors():
@@ -64,9 +63,6 @@ def build_embedding_counts():
         lil_id2tok[len(lil_tok2id)] = UNK
         lil_tok2id[UNK] = len(lil_tok2id)
         print "UNK id is: %d" % lil_tok2id[UNK]
-        lil_id2tok[len(lil_tok2id)] = EMPTY
-        lil_tok2id[EMPTY] = len(lil_tok2id)
-        print "EMPTY id is %d" % lil_tok2id[EMPTY]
 
 	non_terminals = {}
 	for data_type in non_terminal_types:
