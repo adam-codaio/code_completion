@@ -25,11 +25,11 @@ class SequenceModel(Model):
         self.helper = helper
         self.config = config
         self.report = report
-        self.debug = True
-        self.train_size = 3506782
+        self.debug = False
+        self.train_size = 100000
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 1011652
+        self.eval_size = 30000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
