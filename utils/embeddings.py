@@ -59,7 +59,7 @@ def build_embedding_counts():
         for terminal_id, _ in top_terminals:
             lil_id2tok[len(lil_tok2id)] = id2tok[terminal_id]
             lil_tok2id[id2tok[terminal_id]] = len(lil_tok2id)
-            lil_wordVectors.append(allWordVectors[terminal_id])
+            lil_wordVectors.append(allWordVectors[id2tok[terminal_id]])
 
         lil_id2tok[len(lil_tok2id)] = UNK
         lil_tok2id[UNK] = len(lil_tok2id)
