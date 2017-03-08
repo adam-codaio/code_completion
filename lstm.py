@@ -38,18 +38,22 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 217770
-    terminal_vocab = 217770
+    non_terminal_vocab = 50177
+    terminal_vocab = 50177
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
     batch_size = 20
-    n_epochs = 1
+    n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
-    train_file = 'data/train_vectorized.txt'
-    dev_file = 'data/dev_vectorized.txt'
-    test_file = 'data/test_vectorized.txt'
+    unk_label = 50000
+    train_nt = 'data/train_nt_vectorized.txt'
+    train_t = 'data/train_t_vectorized.txt'
+    dev_nt = 'data/dev_nt_vectorized.txt'
+    dev_t = 'data/dev_t_vectorized.txt'
+    test_nt = 'data/test_nt_vectorized.txt'
+    test_t = 'data/test_t_vectorized.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -66,7 +70,7 @@ class Config:
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
-
+        self.results = "results/real_results.txt"
 
 def pad_sequences(data, max_length, terminal_pred):
     """
@@ -295,7 +299,12 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    nt = True if args.non_terminal == 'non_terminal' else False
+    config.nt = True if args.non_terminal == 'non_terminal' else False
+    config.unk = True if args.unk == 'unk' else False
+
+    with open(config.results, 'w') as f:
+        f.write("Running experiment with %s and %s\n" % (args.non_terminal, args.unk))
+
     code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
@@ -321,24 +330,10 @@ def do_train(args):
 
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver, config.train_file, config.dev_file)
-            if report:
-                report.log_output(model.output(session, dev))
-                report.save()
+            if config.nt:
+                model.fit(session, saver, config.train_nt, config.test_nt)
             else:
-                # Save predictions in a text file.
-                # output = model.output(session, dev)
-                # sentences, labels, predictions = zip(*output)
-                # predictions = [[LBLS[l] for l in preds] for preds in predictions]
-                # output = zip(sentences, labels, predictions)
-
-                #with open(model.config.conll_output, 'w') as f:
-		    # pass
-                    #Commenting this out for now as I don't think it works for our data
-                    #write_conll(f, output)
-                #with open(model.config.eval_output, 'w') as f:
-                    #for sentence, labels, predictions in output:
-                        #print_sentence(f, sentence, labels, predictions)
+                model.fit(session, saver, config.train_t, config.test_t)
 
 def do_evaluate(args):
     '''I don't think this should be working yet'''
@@ -424,6 +419,7 @@ if __name__ == "__main__":
     command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
+    command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
     command_parser.set_defaults(func=do_train)
 
     command_parser = subparsers.add_parser('evaluate', help='')

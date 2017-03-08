@@ -29,6 +29,8 @@ class SequenceModel(Model):
         self.train_size = 100000
 	self.dev_size = 20000
         self.debug_size = 500
+        self.eval_debug_size = 100
+        self.eval_size = 30000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -63,7 +65,10 @@ class SequenceModel(Model):
 	
         correct_preds, total_correct, total_preds = 0., 0., 0.
         for labels, labels_ in self.output(sess, data_file, size):
-	    correct_preds += (labels == labels_)
+            if not self.config.unk and not self.config.nt:
+	        correct_preds += (labels == labels_ and labels != self.config.unk_label)
+            else:
+                correct_preds += (labels == labels_)
 	    total_preds += 1
 	    '''
             gold = set(labels)
@@ -80,7 +85,7 @@ class SequenceModel(Model):
 	return correct_preds/total_preds	
 
 
-    def run_epoch(self, sess, train_file, dev_file):
+    def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
         with open(train_file, 'r') as f:
@@ -103,14 +108,18 @@ class SequenceModel(Model):
                 if self.report: self.report.log_train_loss(loss)
             print("")
 
-        logger.info("Evaluating on development data")
-	dev_size = self.debug_size / 5. if self.debug else self.dev_size
-        entity_scores = self.evaluate(sess, dev_file, dev_size)
+        with open(self.config.results, 'a') as f:
+            f.write("Loss: %.2f, " % loss)
+        logger.info("Evaluating on data set")
+	eval_size = self.eval_debug_size if self.debug else self.eval_size
+        entity_scores = self.evaluate(sess, eval_file, eval_size)
         
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
         #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
 	logger.info("Accuracy: %.2f", entity_scores)
+
+        
 
         #f1 = entity_scores[-1]
         #return f1
@@ -146,20 +155,20 @@ class SequenceModel(Model):
 
         return self.consolidate_predictions(input_file, preds)
 
-    def fit(self, sess, saver, train_file, dev_file):
+    def fit(self, sess, saver, train_file, eval_file):
         best_score = 0.
 	
-        #train_examples = self.preprocess_sequence_data(train_examples_raw)
-        #dev_set = self.preprocess_sequence_data(dev_set_raw)
-
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
-            score = self.run_epoch(sess, train_file, dev_file)
+            with open(self.config.results, 'a') as f:
+                f.write("Epoch: %d, " % (epoch + 1))
+            score = self.run_epoch(sess, train_file, eval_file)
+            with open(self.config.results, 'a') as f:
+                f.write("Accuracy: %.2f\n" % score)
+
             if score > best_score:
                 best_score = score
-                if saver:
-                    logger.info("New best score! Saving model in %s", self.config.model_output)
-                    saver.save(sess, self.config.model_output)
+                logger.info("New best score!")
             print("")
             if self.report:
                 self.report.log_epoch()

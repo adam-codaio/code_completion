@@ -50,21 +50,25 @@ def build_embedding_counts():
 
 			# break
 
+	# this is a list of tuples (terminal_id, count) 
 	top_terminals = terminal_counts.most_common(50000)
 
 	print "building little dictionaries and word vectors"
         lil_tok2id = {}
         lil_id2tok = {}
-        lil_wordVectors = []
+        lil_wordVectors = np.zeros((50177, 50))
+        i = 0
         for terminal_id, _ in top_terminals:
             lil_id2tok[len(lil_tok2id)] = id2tok[terminal_id]
             lil_tok2id[id2tok[terminal_id]] = len(lil_tok2id)
-            lil_wordVectors.append(allWordVectors[id2tok[terminal_id]])
+            lil_wordVectors[i] = allWordVectors[id2tok[terminal_id]]
+            i += 1
 
 	val = len(lil_tok2id)
         lil_id2tok[val] = UNK
         lil_tok2id[UNK] = val
-	lil_wordVectors.append(np.asarray(np.random.randn(1, 50), dtype=np.float32))
+	lil_wordVectors[i] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+        i += 1
         print "UNK id is: %d" % lil_tok2id[UNK]
 
 	print "dealing wit non terminals"
@@ -76,26 +80,27 @@ def build_embedding_counts():
 				val = len(lil_tok2id)
 				lil_id2tok[val] = N_t
 				lil_tok2id[N_t] = val
-				lil_wordVectors.append(np.asarray(np.random.randn(1, 50), dtype=np.float32))
+				lil_wordVectors[i] = np.asarray(np.random.randn(1, 50), dtype=np.float32)
+                                i += 1
 
 	print "saving top terminal nodes to file.... format is: id -> count"
-	with open('../data/top_terminal_nodes.pickle', 'wb') as counts_pickle:
+	with open('../data/pickles/top_terminal_nodes.pickle', 'wb') as counts_pickle:
 		pickle.dump(top_terminals, counts_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving non terminal types to file.... format is: type -> number (num isn't relevant)"
-	with open('../data/non_terminal_types.pickle', 'wb') as non_term_pickle:
+	with open('../data/pickles/non_terminal_types.pickle', 'wb') as non_term_pickle:
 		pickle.dump(non_terminal_types, non_term_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving tok2id to file... format is: token -> id (should include all terminal nodes with a embedding and all nonterminal nodes)"
-	with open('../data/tok2id.pickle', 'wb') as tok2id_pickle:
+	with open('../data/pickles/tok2id.pickle', 'wb') as tok2id_pickle:
 		pickle.dump(lil_tok2id, tok2id_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	print "saving id2tok to file... format is: id -> token (should include all terminal nodes with a embedding and all nonterminal nodes)"
-	with open('../data/id2tok.pickle', 'wb') as id2tok_pickle:
+	with open('../data/pickles/id2tok.pickle', 'wb') as id2tok_pickle:
 		pickle.dump(lil_id2tok, id2tok_pickle, protocol=pickle.HIGHEST_PROTOCOL)
 	
         print "saving reduced word vectors, total: %d" % len(lil_wordVectors)
-        with open('../data/wordVectors.pickle', 'wb') as pkl:
+        with open('../data/pickles/wordVectors.pickle', 'wb') as pkl:
 		pickle.dump(lil_wordVectors, pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 def get_tok2id(data, terminal_counts, non_terminal_types, tok2id, id2tok, allWordVectors):		

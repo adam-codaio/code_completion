@@ -40,10 +40,10 @@ def main():
     with open('../data/pickles/tok2id.pickle', 'rb') as f:
         tok2id = pickle.load(f)
     print "read the tok2id mapping"
-
-    train_set(tok2id)
-    dev_set(tok2id)
+   
     test_set(tok2id)
+    train_set(tok2id)
+    # dev_set(tok2id)
 
 if __name__ == "__main__":
     main()
