@@ -26,10 +26,10 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 100000
+        self.train_size = 150000
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 30000
+        self.eval_size = 45000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
