@@ -25,7 +25,7 @@ class SequenceModel(Model):
         self.helper = helper
         self.config = config
         self.report = report
-        self.debug = True
+        self.debug = False
         self.train_size = 100000
 	self.dev_size = 20000
         self.debug_size = 500
