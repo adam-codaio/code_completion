@@ -139,7 +139,11 @@ class LSTMModel(SequenceModel):
             feed_dict[self.attn_mask_placeholder] = attn_mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
+<<<<<<< HEAD
 	    if not self.terminal_pred: labels_batch -= self.terminal_vocab
+=======
+            if not self.terminal_pred: labels_batch -= 50001
+>>>>>>> accfd85f0b652f8bd41394a415419aaa00da2b34
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
