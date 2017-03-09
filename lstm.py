@@ -38,8 +38,8 @@ class Config:
     """
     n_token_features = 1 # Number of features for every token in the input.
     max_length = 49 # longest sequence to parse
-    non_terminal_vocab = 50177
-    terminal_vocab = 50177
+    non_terminal_vocab = 176
+    terminal_vocab = 50001
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
@@ -80,6 +80,7 @@ def pad_sequences(data, max_length, terminal_pred):
     """
 
     ret = []
+    attn_ret = []
 
     # Use this zero vector when padding sequences.
     zero_vector = [0] * Config.n_token_features
@@ -87,13 +88,15 @@ def pad_sequences(data, max_length, terminal_pred):
 
     for code_snippet, labels in data:
         in_pad = max_length*2 + terminal_pred - len(code_snippet)
-	mask_pad = int((len(code_snippet)-terminal_pred)/2)
+	    mask_pad = int((len(code_snippet)-terminal_pred)/2)
         if in_pad <= 0:
-            ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True]))
+            ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True], [1] * (max_length-1) + [0]))
         else:
-	    mask = [False] * max_length
-	    mask[mask_pad] = True
-            ret.append((code_snippet + zero_vector * in_pad, labels, mask))
+            mask = [False] * max_length
+	        mask[mask_pad] = True
+            attn_mask = np.zeros(max_length)
+            attn_mask[:mask_pad] = 1
+            ret.append((code_snippet + zero_vector * in_pad, labels, mask, list(attn_mask)))
                    
     return ret
 
@@ -104,11 +107,12 @@ class LSTMModel(SequenceModel):
         Generates placeholder variables to represent the input tensors
         """
         #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_token_features))
-	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
+	    self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	    self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	    self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
+        self.attn_mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float64)
 
     def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1):
@@ -131,8 +135,11 @@ class LSTMModel(SequenceModel):
 		feed_dict[self.next_non_terminal_input_placeholder]=inputs_batch[:,-1]
         if mask_batch is not None:
             feed_dict[self.mask_placeholder] = mask_batch
+        if attn_mask_batch is not None:
+            feed_dict[self.attn_mask_placeholder] = attn_mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
+            if not self.terminal_pred: labels_batch -= 50001
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
@@ -196,23 +203,40 @@ class LSTMModel(SequenceModel):
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
 
-        with tf.variable_scope(scope):
-            for time_step in range(self.max_length):
-		if time_step > 0:
-                    tf.get_variable_scope().reuse_variables()
-                o_t, h_t= cell(x[:,time_step,:], state_tuple)
+    with tf.variable_scope(scope):
+        for time_step in range(self.max_length):
+	       if time_step > 0:
+                tf.get_variable_scope().reuse_variables()
+            o_t, h_t= cell(x[:,time_step,:], state_tuple)
         	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
         	preds.append(tf.matmul(o_drop_t, U) + b2)
 	preds = tf.stack(preds, 1)
-	preds = tf.boolean_mask(preds, self.mask_placeholder)
-	if self.config.terminal_pred:
-	    nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
-	    nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
-	    U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
-            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
-	    preds = preds + tf.matmul(nt, U_nt) + b_t
+	final_preds = tf.boolean_mask(preds, self.mask_placeholder)
+
+    if self.cell = "lstmA":
+        W_a = tf.get_variable('W_a', shape = [output_size, output_size], initializer = xinit)
+        W_o = tf.get_variable('W_o', shape = [2*output_size, output_size], initializer = xinit)
+        W_s = tf.get_variable('W_s', shape = [output_size, output_size], initializer = xinit)
+        b_o = tf.get_variable('b_o', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        b_s = tf.get_variable('b_s', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        ht = tf.reshape(matmul(final_preds, W_a), (tf.shape(x)[final_preds], -1, output_size))
+        weights = tf.reduce_sum(ht * preds, axis=2) * self.attn_mask_placeholder
+        norm = tf.reshape(tf.reduce_sum(weights,axis=1), (tf.shape(weights)[0], -1))
+        weights /= norm
+
+        context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * preds, axis = 1)
+
+        final_preds = tf.tanh(tf.matmul(tf.concat([context, final_preds], 1), W_o) + b_o)
+        final_preds = tf.matmul(final_preds, W_s) + b_s
+
+    if self.config.terminal_pred:
+        nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
+        nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
+        U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
+        b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
 	
-        return preds
+    return final_preds
 
     def add_loss_op(self, preds):
         """
@@ -269,13 +293,13 @@ class LSTMModel(SequenceModel):
 	        ret.append([label[0], label_])
         return ret
 
-    def predict_on_batch(self, sess, inputs_batch, mask_batch):
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
+    def predict_on_batch(self, sess, inputs_batch, mask_batch, attn_mask):
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask=attn_mask)
         predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
-    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
-        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
+    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch, attn_mask):
+        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask=attn_mask,
                                      dropout=Config.dropout)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
@@ -416,7 +440,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmA"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
