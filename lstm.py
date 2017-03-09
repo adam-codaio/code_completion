@@ -88,12 +88,12 @@ def pad_sequences(data, max_length, terminal_pred):
 
     for code_snippet, labels in data:
         in_pad = max_length*2 + terminal_pred - len(code_snippet)
-	    mask_pad = int((len(code_snippet)-terminal_pred)/2)
+        mask_pad = int((len(code_snippet)-terminal_pred)/2)
         if in_pad <= 0:
             ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True], [1] * (max_length-1) + [0]))
         else:
             mask = [False] * max_length
-	        mask[mask_pad] = True
+	    mask[mask_pad] = True
             attn_mask = np.zeros(max_length)
             attn_mask[:mask_pad] = 1
             ret.append((code_snippet + zero_vector * in_pad, labels, mask, list(attn_mask)))
@@ -107,15 +107,15 @@ class LSTMModel(SequenceModel):
         Generates placeholder variables to represent the input tensors
         """
         #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_token_features))
-	    self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	    self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	    self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
+	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
-        self.attn_mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
+        self.attn_mask_placeholder = tf.placeholder(tf.float64, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float64)
 
-    def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1):
+    def create_feed_dict(self, inputs_batch, mask_batch, attn_mask_batch, labels_batch=None, dropout=1):
         """Creates the feed_dict for the dependency parser.
 
         A feed_dict takes the form of:
@@ -139,7 +139,7 @@ class LSTMModel(SequenceModel):
             feed_dict[self.attn_mask_placeholder] = attn_mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
-	    if not self.terminal_pred: labels_batch -= self.terminal_vocab
+	    if not self.config.terminal_pred: labels_batch -= self.config.terminal_vocab
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
@@ -203,40 +203,40 @@ class LSTMModel(SequenceModel):
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
 
-    with tf.variable_scope(scope):
-        for time_step in range(self.max_length):
-	       if time_step > 0:
-                tf.get_variable_scope().reuse_variables()
-            o_t, h_t= cell(x[:,time_step,:], state_tuple)
+    	with tf.variable_scope(scope):
+            for time_step in range(self.max_length):
+	        if time_step > 0:
+		    tf.get_variable_scope().reuse_variables()
+                o_t, h_t= cell(x[:,time_step,:], state_tuple)
         	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
         	preds.append(tf.matmul(o_drop_t, U) + b2)
-	preds = tf.stack(preds, 1)
-	final_preds = tf.boolean_mask(preds, self.mask_placeholder)
+	    preds = tf.stack(preds, 1)
+	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 
-    if self.cell = "lstmA":
-        W_a = tf.get_variable('W_a', shape = [output_size, output_size], initializer = xinit)
-        W_o = tf.get_variable('W_o', shape = [2*output_size, output_size], initializer = xinit)
-        W_s = tf.get_variable('W_s', shape = [output_size, output_size], initializer = xinit)
-        b_o = tf.get_variable('b_o', shape = [output_size], initializer = tf.constant_initializer(0.0))
-        b_s = tf.get_variable('b_s', shape = [output_size], initializer = tf.constant_initializer(0.0))
-        ht = tf.reshape(matmul(final_preds, W_a), (tf.shape(x)[final_preds], -1, output_size))
-        weights = tf.reduce_sum(ht * preds, axis=2) * self.attn_mask_placeholder
-        norm = tf.reshape(tf.reduce_sum(weights,axis=1), (tf.shape(weights)[0], -1))
-        weights /= norm
+    	if self.config.cell == "lstmA":
+            W_a = tf.get_variable('W_a', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
+            W_o = tf.get_variable('W_o', shape = [2*output_size, output_size], dtype = tf.float64, initializer = xinit)
+            W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
+            b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+            b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+            ht = tf.reshape(tf.matmul(final_preds, W_a), (tf.shape(x)[0], -1, output_size))
+            weights = tf.reduce_sum(ht * preds, axis=2) * self.attn_mask_placeholder
+            norm = tf.reshape(tf.reduce_sum(weights,axis=1), (tf.shape(weights)[0], -1))
+            weights /= norm
 
-        context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * preds, axis = 1)
+            context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * preds, axis = 1)
 
-        final_preds = tf.tanh(tf.matmul(tf.concat([context, final_preds], 1), W_o) + b_o)
-        final_preds = tf.matmul(final_preds, W_s) + b_s
+            final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_preds]), W_o) + b_o)
+            final_preds = tf.matmul(final_preds, W_s) + b_s
 
-    if self.config.terminal_pred:
-        nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
-        nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
-        U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
-        b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
-        final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
+    	if self.config.terminal_pred:
+            nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
+            nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
+            U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
+            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+            final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
 	
-    return final_preds
+    	return final_preds
 
     def add_loss_op(self, preds):
         """
@@ -294,12 +294,12 @@ class LSTMModel(SequenceModel):
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask=attn_mask)
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask)
         predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask=attn_mask,
+        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask,
                                      dropout=Config.dropout)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
