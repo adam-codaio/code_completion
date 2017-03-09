@@ -26,10 +26,10 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 150000
+        self.train_size = 100000
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 45000
+        self.eval_size = 30000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -119,10 +119,12 @@ class SequenceModel(Model):
 
                 for label, label_ in zip(gold_values, preds_):
                     if not self.config.unk and not self.config.nt:
-	                correct_preds += (label == label_ and label != self.config.unk_label)
+                        if label != self.config.unk_label:
+	                    correct_preds += (label == label_)
+                            total_preds += 1
                     else:
                         correct_preds += (label == label_)
-                    total_preds += 1
+                        total_preds += 1
                 
                 prog.update(i + 1, [])
 

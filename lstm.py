@@ -206,11 +206,11 @@ class LSTMModel(SequenceModel):
         	preds.append(tf.matmul(o_drop_t, U) + b2)
 	preds = tf.stack(preds, 1)
 	preds = tf.boolean_mask(preds, self.mask_placeholder)
-	if self.config.terminal_pred:
+	if self.config.nt:
 	    nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
 	    nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
-	    U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
-            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+	    U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit, dtype=tf.float64)
+            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
 	    preds = preds + tf.matmul(nt, U_nt) + b_t
 	
         return preds
