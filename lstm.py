@@ -184,6 +184,7 @@ class LSTMModel(SequenceModel):
         dropout_rate = self.dropout_placeholder
 
         preds = [] # Predicted output at each timestep should go here!
+        hidden = []
 
         cell = LSTMCell(Config.n_token_features * Config.embed_size, Config.hidden_size)
 
@@ -202,33 +203,60 @@ class LSTMModel(SequenceModel):
 	state_tuple = (c_t, h_t)
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
+        '''
+        if self.config.cell == "lstmA":
+            W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            W_s = tf.get_variable('W_s', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            b_o = tf.get_variable('b_o', shape = [self.config.hidden_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+            b_s = tf.get_variable('b_s', shape = [self.config.hidden_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+            with tf.variable_scope(scope):
+            for time_step in range(self.max_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                o_t, h_t= cell(x[:,time_step,:], state_tuple)
+
+                ht = tf.reshape(tf.matmul(h_t, W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
+                weights = tf.reduce_sum(ht * hidden, axis=2) * self.attn_mask_placeholder
+                weights = tf.nn.softmax(weights)
+
+                context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
+                o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+                preds.append(tf.matmul(o_drop_t, U) + b2)
+        preds = tf.stack(preds, 1)
+        final_preds = tf.boolean_mask(preds, self.mask_placeholder)
+        '''
+
 
     	with tf.variable_scope(scope):
             for time_step in range(self.max_length):
-	        if time_step > 0:
-		    tf.get_variable_scope().reuse_variables()
+	            if time_step > 0:
+		          tf.get_variable_scope().reuse_variables()
                 o_t, h_t= cell(x[:,time_step,:], state_tuple)
-        	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-        	preds.append(tf.matmul(o_drop_t, U) + b2)
-	    preds = tf.stack(preds, 1)
-	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
+        	   o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+        	   preds.append(tf.matmul(o_drop_t, U) + b2)
+               hidden.append(h_t)
+	       preds = tf.stack(preds, 1)
+           hidden = tf.stack(hidden, 1)
 
+	       final_preds = tf.boolean_mask(preds, self.mask_placeholder)
+           final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
+        
     	if self.config.cell == "lstmA":
-            W_a = tf.get_variable('W_a', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
-            W_o = tf.get_variable('W_o', shape = [2*output_size, output_size], dtype = tf.float64, initializer = xinit)
+            W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
-            b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+            b_o = tf.get_variable('b_o', shape = [self.config.hidden_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
             b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-            ht = tf.reshape(tf.matmul(final_preds, W_a), (tf.shape(x)[0], -1, output_size))
-            weights = tf.reduce_sum(ht * preds, axis=2) * self.attn_mask_placeholder
-            norm = tf.reshape(tf.reduce_sum(weights,axis=1), (tf.shape(weights)[0], -1))
-            weights /= norm
+            ht = tf.reshape(tf.matmul(final_preds, W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
+            weights = tf.reduce_sum(ht * hidden, axis=2) * self.attn_mask_placeholder
+            weights = tf.nn.softmax(weights)
 
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * preds, axis = 1)
 
-            final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_preds]), W_o) + b_o)
+            final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
-
+        
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
             nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
