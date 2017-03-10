@@ -26,7 +26,7 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 100000
+        self.train_size = 10000
         self.debug_size = 500
         self.eval_debug_size = 100
         self.eval_size = 30000
@@ -112,13 +112,13 @@ class SequenceModel(Model):
                     batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 # Ignore predict
-                offset = self.config.terminal_vocab if self.config.nt else 0
+                offset = self.config.terminal_vocab if not self.config.terminal_pred else 0
                 gold_values = [val - offset for label in batch[1] for val in label]
                 batch = batch[:1] + batch[2:]
             	preds_ = self.predict_on_batch(sess, *batch)
 
                 for label, label_ in zip(gold_values, preds_):
-                    if not self.config.unk and not self.config.nt:
+                    if not self.config.unk and self.config.terminal_pred:
                         if label != self.config.unk_label:
 	                    correct_preds += (label == label_)
                             total_preds += 1

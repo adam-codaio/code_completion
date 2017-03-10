@@ -43,7 +43,7 @@ class Config:
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 50
+    batch_size = 20
     n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
@@ -133,7 +133,7 @@ class LSTMModel(SequenceModel):
             feed_dict[self.mask_placeholder] = mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
-	    if self.config.nt: labels_batch -= self.config.terminal_vocab
+	    if not self.config.terminal_pred: labels_batch -= self.config.terminal_vocab
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
@@ -188,6 +188,7 @@ class LSTMModel(SequenceModel):
             output_size = self.config.non_terminal_vocab
         else:
             output_size = self.config.terminal_vocab
+
         U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
                             initializer=xinit, dtype=tf.float64)
         b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
@@ -206,7 +207,7 @@ class LSTMModel(SequenceModel):
         	preds.append(tf.matmul(o_drop_t, U) + b2)
 	preds = tf.stack(preds, 1)
 	preds = tf.boolean_mask(preds, self.mask_placeholder)
-	if not self.config.nt:
+	if self.config.terminal_pred:
 	    nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
 	    nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
 	    U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit, dtype=tf.float64)
@@ -300,7 +301,6 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
-    config.nt = True if args.non_terminal == 'non_terminal' else False
     config.unk = True if args.unk == 'unk' else False
 
     with open(config.results, 'w') as f:
@@ -331,7 +331,7 @@ def do_train(args):
 
         with tf.Session() as session:
             session.run(init)
-            if config.nt:
+            if not config.terminal_pred:
                 model.fit(session, saver, config.train_nt, config.test_nt)
             else:
                 model.fit(session, saver, config.train_t, config.test_t)
