@@ -216,10 +216,8 @@ class LSTMModel(SequenceModel):
 
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
-	    # print hidden.get_shape().as_list()
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
-	    # print final_hidden.get_shape().as_list()
         
     	if self.config.cell == "lstmA":
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
@@ -232,7 +230,6 @@ class LSTMModel(SequenceModel):
             weights = tf.nn.softmax(weights)
 
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-	    # print context.get_shape().as_list()
             final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
         
