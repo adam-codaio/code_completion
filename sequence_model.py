@@ -26,10 +26,10 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 10000
+        self.train_size = 100000
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 30000
+        self.eval_size = 3000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -72,21 +72,21 @@ class SequenceModel(Model):
             print("")
 
         with open(self.config.results, 'a') as f:
-            f.write("Loss: %.2f, " % loss)
-        logger.info("Evaluating on data set")
-	eval_size = self.eval_debug_size if self.debug else self.eval_size
-        entity_scores = self.evaluate(sess, eval_file, eval_size)
+            f.write("Loss: %.4f\n " % loss)
+        #logger.info("Evaluating on data set")
+	#eval_size = self.eval_debug_size if self.debug else self.eval_size
+        #entity_scores = self.evaluate(sess, eval_file, eval_size)
         
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
         #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
-	logger.info("Accuracy: %.2f", entity_scores)
+	#logger.info("Accuracy: %.2f", entity_scores)
 
         
 
         #f1 = entity_scores[-1]
         #return f1
-	return entity_scores
+	#return entity_scores
 
     def evaluate(self, sess, input_file, size):
         """
@@ -138,12 +138,12 @@ class SequenceModel(Model):
             with open(self.config.results, 'a') as f:
                 f.write("Epoch: %d, " % (epoch + 1))
             score = self.run_epoch(sess, train_file, eval_file)
-            with open(self.config.results, 'a') as f:
-                f.write("Accuracy: %.2f\n" % score)
-
-            if score > best_score:
-                best_score = score
-                logger.info("New best score!")
+            #with open(self.config.results, 'a') as f:
+                #f.write("Accuracy: %.2f\n" % score)
+            saver.save(sess, self.config.model_output + str(epoch))
+            #if score > best_score:
+                #best_score = score
+                #logger.info("New best score!")
             print("")
             if self.report:
                 self.report.log_epoch()

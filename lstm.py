@@ -70,7 +70,7 @@ class Config:
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
-        self.results = "results/real_results.txt"
+        self.results = self.output_path + "real_results.txt"
 
 def pad_sequences(data, max_length, terminal_pred):
     """
