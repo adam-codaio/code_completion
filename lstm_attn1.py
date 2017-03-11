@@ -246,26 +246,26 @@ class LSTMModel(SequenceModel):
 		    hidden.append(h_t[1])
 		    hidden_stack = tf.stack(hidden, 1)
 		    ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
-		    print "ht shape: ", ht.get_shape().as_list()
-		    print "hidden shape: ", hidden_stack.get_shape().as_list()   
-            	    print "time step: ", time_step
-		    print "original mask: ", self.attn_mask_placeholder.get_shape().as_list()
-		    print "mask: ", tf.slice(self.attn_mask_placeholder, [0,0], [-1,time_step + 1])
+		    #print "ht shape: ", ht.get_shape().as_list()
+		    #print "hidden shape: ", hidden_stack.get_shape().as_list()   
+            	    #print "time step: ", time_step
+		    #print "original mask: ", self.attn_mask_placeholder.get_shape().as_list()
+		    #print "mask: ", tf.slice(self.attn_mask_placeholder, [0,0], [-1,time_step + 1])
 		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
             	    weights = tf.nn.softmax(weights)
 
 		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)
-		    print "context shape: ", context.get_shape().as_list()	
-		    print "weights: ", weights.get_shape().as_list()
+		    #print "context shape: ", context.get_shape().as_list()	
+		    #print "weights: ", weights.get_shape().as_list()
 		    #replace last hidden state with context
                     hidden = hidden[:-1] + [context]
 
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
-	    print hidden.get_shape().as_list()
+	    #print hidden.get_shape().as_list()
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
-	    print final_hidden.get_shape().as_list()
+	    #print final_hidden.get_shape().as_list()
         
         
     	if self.config.cell == "lstmA":
@@ -280,7 +280,7 @@ class LSTMModel(SequenceModel):
 
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
         
-	    print context.get_shape().as_list()
+	    #print context.get_shape().as_list()
             final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
         
