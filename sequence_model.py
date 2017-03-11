@@ -51,6 +51,7 @@ class SequenceModel(Model):
     def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
+        loss = 0.
         with open(train_file, 'r') as f:
             i = 0
             num_examples = num_train
@@ -134,7 +135,7 @@ class SequenceModel(Model):
         best_score = 0.
 
         term = "terminal" if self.config.terminal_pred else "non_terminal"
-        unk = "unk" if self.config.terminal_pred else "no_unk"
+        unk = "unk" if self.config.unk else "no_unk"
         with open(self.config.results, 'w') as f:
             f.write("Running experiment with %s and %s\n" % (term, unk))
 
