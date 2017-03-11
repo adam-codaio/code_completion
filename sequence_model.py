@@ -26,7 +26,7 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 100000
+        self.train_size = 2000000
         self.debug_size = 500
         self.eval_debug_size = 100
         self.eval_size = 3000
@@ -72,7 +72,7 @@ class SequenceModel(Model):
             print("")
 
         with open(self.config.results, 'a') as f:
-            f.write("Loss: %.4f\n " % loss)
+            f.write("Loss: %.4f\n" % loss)
         #logger.info("Evaluating on data set")
 	#eval_size = self.eval_debug_size if self.debug else self.eval_size
         #entity_scores = self.evaluate(sess, eval_file, eval_size)
@@ -132,7 +132,12 @@ class SequenceModel(Model):
 
     def fit(self, sess, saver, train_file, eval_file):
         best_score = 0.
-	
+
+        term = "terminal" if self.config.terminal_pred else "non_terminal"
+        unk = "unk" if self.config.terminal_pred else "no_unk"
+        with open(self.config.results, 'w') as f:
+            f.write("Running experiment with %s and %s\n" % (term, unk))
+
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
             with open(self.config.results, 'a') as f:

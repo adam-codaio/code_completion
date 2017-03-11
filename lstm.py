@@ -302,10 +302,7 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     config.unk = True if args.unk == 'unk' else False
-
-    with open(config.results, 'w') as f:
-        f.write("Running experiment with %s and %s\n" % (args.non_terminal, args.unk))
-
+ 
     code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
