@@ -51,9 +51,9 @@ class SequenceModel(Model):
     def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
-        loss = 0.
+        total_loss = 0.
+        i = 0
         with open(train_file, 'r') as f:
-            i = 0
             num_examples = num_train
             while num_examples > 0:
 		if num_examples - self.config.batch_size > 0:
@@ -68,12 +68,14 @@ class SequenceModel(Model):
        	 	    batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 loss = self.train_on_batch(sess, *batch)
+                total_loss += loss
                 prog.update(i + 1, [("train loss", loss)])
                 if self.report: self.report.log_train_loss(loss)
             print("")
 
+        avg_loss = total_loss / (i + 1)
         with open(self.config.results, 'a') as f:
-            f.write("Loss: %.4f\n" % loss)
+            f.write("Loss: %.4f\n" % avg_loss)
         #logger.info("Evaluating on data set")
 	#eval_size = self.eval_debug_size if self.debug else self.eval_size
         #entity_scores = self.evaluate(sess, eval_file, eval_size)
