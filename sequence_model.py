@@ -25,11 +25,11 @@ class SequenceModel(Model):
         self.helper = helper
         self.config = config
         self.report = report
-        self.debug = True
-        self.train_size = 3506782
+        self.debug = False
+        self.train_size = 2000000
         self.debug_size = 500
         self.eval_debug_size = 100
-        self.eval_size = 1011652
+        self.eval_size = 3000
 
     def preprocess_sequence_data(self, examples):
         """Preprocess sequence data for the model.
@@ -51,8 +51,9 @@ class SequenceModel(Model):
     def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
+        total_loss = 0.
+        i = 0
         with open(train_file, 'r') as f:
-            i = 0
             num_examples = num_train
             while num_examples > 0:
 		if num_examples - self.config.batch_size > 0:
@@ -67,26 +68,28 @@ class SequenceModel(Model):
        	 	    batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 loss = self.train_on_batch(sess, *batch)
+                total_loss += loss
                 prog.update(i + 1, [("train loss", loss)])
                 if self.report: self.report.log_train_loss(loss)
             print("")
 
+        avg_loss = total_loss / (i + 1)
         with open(self.config.results, 'a') as f:
-            f.write("Loss: %.2f, " % loss)
-        logger.info("Evaluating on data set")
-	eval_size = self.eval_debug_size if self.debug else self.eval_size
-        entity_scores = self.evaluate(sess, eval_file, eval_size)
+            f.write("Loss: %.4f\n" % avg_loss)
+        #logger.info("Evaluating on data set")
+	#eval_size = self.eval_debug_size if self.debug else self.eval_size
+        #entity_scores = self.evaluate(sess, eval_file, eval_size)
         
         #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
         #logger.debug("Token-level scores:\n" + token_cm.summary())
         #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
-	logger.info("Accuracy: %.2f", entity_scores)
+	#logger.info("Accuracy: %.2f", entity_scores)
 
         
 
         #f1 = entity_scores[-1]
         #return f1
-	return entity_scores
+	#return entity_scores
 
     def evaluate(self, sess, input_file, size):
         """
@@ -112,16 +115,19 @@ class SequenceModel(Model):
                     batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 # Ignore predict
-                gold_values = [val for label in batch[1] for val in label]
+                offset = self.config.terminal_vocab if not self.config.terminal_pred else 0
+                gold_values = [val - offset for label in batch[1] for val in label]
                 batch = batch[:1] + batch[2:]
             	preds_ = self.predict_on_batch(sess, *batch)
 
                 for label, label_ in zip(gold_values, preds_):
-                    if not self.config.unk and not self.config.nt:
-	                correct_preds += (label == label_ and label != self.config.unk_label)
+                    if not self.config.unk and self.config.terminal_pred:
+                        if label != self.config.unk_label:
+	                    correct_preds += (label == label_)
+                            total_preds += 1
                     else:
                         correct_preds += (label == label_)
-                    total_preds += 1
+                        total_preds += 1
                 
                 prog.update(i + 1, [])
 
@@ -129,18 +135,23 @@ class SequenceModel(Model):
 
     def fit(self, sess, saver, train_file, eval_file):
         best_score = 0.
-	
+
+        term = "terminal" if self.config.terminal_pred else "non_terminal"
+        unk = "unk" if self.config.unk else "no_unk"
+        with open(self.config.results, 'w') as f:
+            f.write("Running experiment with %s and %s\n" % (term, unk))
+
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
             with open(self.config.results, 'a') as f:
                 f.write("Epoch: %d, " % (epoch + 1))
             score = self.run_epoch(sess, train_file, eval_file)
-            with open(self.config.results, 'a') as f:
-                f.write("Accuracy: %.2f\n" % score)
-
-            if score > best_score:
-                best_score = score
-                logger.info("New best score!")
+            #with open(self.config.results, 'a') as f:
+                #f.write("Accuracy: %.2f\n" % score)
+            saver.save(sess, self.config.model_output + str(epoch))
+            #if score > best_score:
+                #best_score = score
+                #logger.info("New best score!")
             print("")
             if self.report:
                 self.report.log_epoch()
