@@ -70,7 +70,7 @@ class Config:
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
-        self.results = "results/real_results.txt"
+        self.results = self.output_path + "real_results.txt"
 
 def pad_sequences(data, max_length, terminal_pred):
     """
@@ -354,10 +354,7 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     config.unk = True if args.unk == 'unk' else False
-
-    with open(config.results, 'w') as f:
-        f.write("Running experiment with %s and %s\n" % (args.non_terminal, args.unk))
-
+ 
     code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
