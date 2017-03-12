@@ -48,12 +48,12 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized.txt'
-    train_t = 'data/train_t_vectorized.txt'
-    dev_nt = 'data/dev_nt_vectorized.txt'
-    dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized.txt'
-    test_t = 'data/test_t_vectorized.txt'
+    train_nt = 'data/train_nt_vectorized_small.txt'
+    train_t = 'data/train_t_vectorized_small.txt'
+    dev_nt = 'data/dev_nt_vectorized_small.txt'
+    dev_t = 'data/dev_t_vectorized_small.txt'
+    test_nt = 'data/test_nt_vectorized_small.txt'
+    test_t = 'data/test_t_vectorized_small.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -214,12 +214,26 @@ class LSTMModel(SequenceModel):
         	preds.append(tf.matmul(o_drop_t, U) + b2)
                 hidden.append(h_t[1])
 
+		if (self.config.cell == "lstmAcont"):
+		    W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+                    W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
+                    W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
+                    b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+                    b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+		    
+		    hidden_stack = tf.stack(hidden, 1)
+                    ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
+		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
+                    weights = tf.nn.softmax(weights)
+		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)		    
+		    hidden = hidden[:-1] + [context]
+
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
         
-    	if self.config.cell == "lstmA":
+    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
             W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
@@ -440,7 +454,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmA"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
