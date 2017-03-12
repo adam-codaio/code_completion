@@ -43,15 +43,15 @@ class Config:
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 200
+    batch_size = 1000
     n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
     train_nt = 'data/train_nt_vectorized_small.txt'
     train_t = 'data/train_t_vectorized_small.txt'
-    dev_nt = 'data/dev_nt_vectorized_small.txt'
-    dev_t = 'data/dev_t_vectorized_small.txt'
+    dev_nt = 'data/dev_nt_vectorized.txt'
+    dev_t = 'data/dev_t_vectorized.txt'
     test_nt = 'data/test_nt_vectorized_small.txt'
     test_t = 'data/test_t_vectorized_small.txt'
 
@@ -70,7 +70,7 @@ class Config:
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.log_output = self.output_path + "log"
-        self.results = self.output_path + "real_results.txt"
+        self.results = "results/real_results.txt"
 
 def pad_sequences(data, max_length, terminal_pred):
     """
@@ -88,12 +88,12 @@ def pad_sequences(data, max_length, terminal_pred):
 
     for code_snippet, labels in data:
         in_pad = max_length*2 + terminal_pred - len(code_snippet)
-        mask_pad = int((len(code_snippet)-terminal_pred)/2)
+	    mask_pad = int((len(code_snippet)-terminal_pred)/2)
         if in_pad <= 0:
             ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True], [1] * (max_length-1) + [0]))
         else:
             mask = [False] * max_length
-	    mask[mask_pad] = True
+	        mask[mask_pad] = True
             attn_mask = np.zeros(max_length)
             attn_mask[:mask_pad] = 1
             ret.append((code_snippet + zero_vector * in_pad, labels, mask, list(attn_mask)))
@@ -107,15 +107,15 @@ class LSTMModel(SequenceModel):
         Generates placeholder variables to represent the input tensors
         """
         #self.input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length, self.config.n_token_features))
-	self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
-	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
+	    self.non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	    self.terminal_input_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_length))#, self.config.n_token_features))
+	    self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
-        self.attn_mask_placeholder = tf.placeholder(tf.float64, shape=(None, self.max_length))
+        self.attn_mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float64)
 
-    def create_feed_dict(self, inputs_batch, mask_batch, attn_mask_batch, labels_batch=None, dropout=1):
+    def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1):
         """Creates the feed_dict for the dependency parser.
 
         A feed_dict takes the form of:
@@ -139,7 +139,11 @@ class LSTMModel(SequenceModel):
             feed_dict[self.attn_mask_placeholder] = attn_mask_batch
         if labels_batch is not None:
 	    labels_batch = labels_batch.flatten()
-	    if not self.config.terminal_pred: labels_batch -= self.config.terminal_vocab
+<<<<<<< HEAD
+	    if not self.terminal_pred: labels_batch -= self.terminal_vocab
+=======
+            if not self.terminal_pred: labels_batch -= 50001
+>>>>>>> accfd85f0b652f8bd41394a415419aaa00da2b34
             feed_dict[self.labels_placeholder] = labels_batch
         if dropout is not None:
             feed_dict[self.dropout_placeholder] = dropout
@@ -184,7 +188,6 @@ class LSTMModel(SequenceModel):
         dropout_rate = self.dropout_placeholder
 
         preds = [] # Predicted output at each timestep should go here!
-        hidden = []
 
         cell = LSTMCell(Config.n_token_features * Config.embed_size, Config.hidden_size)
 
@@ -195,7 +198,6 @@ class LSTMModel(SequenceModel):
             output_size = self.config.non_terminal_vocab
         else:
             output_size = self.config.terminal_vocab
-
         U = tf.get_variable('U', shape=[self.config.hidden_size, output_size],
                             initializer=xinit, dtype=tf.float64)
         b2 = tf.get_variable('b2', shape=[output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
@@ -205,56 +207,40 @@ class LSTMModel(SequenceModel):
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
 
-    	with tf.variable_scope(scope):
-            for time_step in range(self.max_length):
-	        if time_step > 0:
-		    tf.get_variable_scope().reuse_variables()
-                o_t, h_t= cell(x[:,time_step,:], state_tuple)
+    with tf.variable_scope(scope):
+        for time_step in range(self.max_length):
+	       if time_step > 0:
+                tf.get_variable_scope().reuse_variables()
+            o_t, h_t= cell(x[:,time_step,:], state_tuple)
         	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
         	preds.append(tf.matmul(o_drop_t, U) + b2)
-                hidden.append(h_t[1])
+	preds = tf.stack(preds, 1)
+	final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 
-		if (self.config.cell == "lstmAcont"):
-		    W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-                    W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
-                    W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
-                    b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-                    b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-		    
-		    hidden_stack = tf.stack(hidden, 1)
-                    ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
-		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
-                    weights = tf.nn.softmax(weights)
-		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)		    
-		    hidden = hidden[:-1] + [context]
+    if self.cell = "lstmA":
+        W_a = tf.get_variable('W_a', shape = [output_size, output_size], initializer = xinit)
+        W_o = tf.get_variable('W_o', shape = [2*output_size, output_size], initializer = xinit)
+        W_s = tf.get_variable('W_s', shape = [output_size, output_size], initializer = xinit)
+        b_o = tf.get_variable('b_o', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        b_s = tf.get_variable('b_s', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        ht = tf.reshape(matmul(final_preds, W_a), (tf.shape(x)[final_preds], -1, output_size))
+        weights = tf.reduce_sum(ht * preds, axis=2) * self.attn_mask_placeholder
+        norm = tf.reshape(tf.reduce_sum(weights,axis=1), (tf.shape(weights)[0], -1))
+        weights /= norm
 
-	    preds = tf.stack(preds, 1)
-            hidden = tf.stack(hidden, 1)
-	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
-	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
-        
-    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont"):
-            W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-            W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
-            W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
-            b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-            b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-            ht = tf.reshape(tf.matmul(final_hidden, W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
-            weights = tf.reduce_sum(ht * hidden, axis=2) * self.attn_mask_placeholder
-            weights = tf.nn.softmax(weights)
+        context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * preds, axis = 1)
 
-            context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-            final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
-            final_preds = tf.matmul(final_preds, W_s) + b_s
-        
-    	if self.config.terminal_pred:
-            nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
-            nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
-            U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit,dtype=tf.float64)
-            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
-            final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
+        final_preds = tf.tanh(tf.matmul(tf.concat([context, final_preds], 1), W_o) + b_o)
+        final_preds = tf.matmul(final_preds, W_s) + b_s
+
+    if self.config.terminal_pred:
+        nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
+        nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
+        U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
+        b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+        final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
 	
-    	return final_preds
+    return final_preds
 
     def add_loss_op(self, preds):
         """
@@ -312,12 +298,12 @@ class LSTMModel(SequenceModel):
         return ret
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask)
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask=attn_mask)
         predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask,
+        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask=attn_mask,
                                      dropout=Config.dropout)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
@@ -341,8 +327,12 @@ class LSTMModel(SequenceModel):
 def do_train(args):
     # Set up some parameters.
     config = Config(args)
+    config.nt = True if args.non_terminal == 'non_terminal' else False
     config.unk = True if args.unk == 'unk' else False
- 
+
+    with open(config.results, 'w') as f:
+        f.write("Running experiment with %s and %s\n" % (args.non_terminal, args.unk))
+
     code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
@@ -368,7 +358,7 @@ def do_train(args):
 
         with tf.Session() as session:
             session.run(init)
-            if not config.terminal_pred:
+            if config.nt:
                 model.fit(session, saver, config.train_nt, config.test_nt)
             else:
                 model.fit(session, saver, config.train_t, config.test_t)
@@ -454,7 +444,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmA"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
