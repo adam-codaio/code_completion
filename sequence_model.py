@@ -26,7 +26,7 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 2000000
+        self.train_size = 3506782
         self.debug_size = 500
         self.eval_debug_size = 100
         self.eval_size = 3000
@@ -139,7 +139,7 @@ class SequenceModel(Model):
         term = "terminal" if self.config.terminal_pred else "non_terminal"
         unk = "unk" if self.config.unk else "no_unk"
         with open(self.config.results, 'w') as f:
-            f.write("Running experiment with %s and %s\n" % (term, unk))
+            f.write("Running %s experiment with %s and %s\n" % (self.config.lstm, term, unk))
 
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
