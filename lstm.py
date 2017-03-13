@@ -214,26 +214,32 @@ class LSTMModel(SequenceModel):
         	preds.append(tf.matmul(o_drop_t, U) + b2)
                 hidden.append(h_t[1])
 
-		if (self.config.cell == "lstmAcont"):
+		if (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum"):
 		    W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
                     W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
                     W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
                     b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
                     b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-		    
+		    p = tf.get_variable('p', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(0.0, 1.0))
+			
 		    hidden_stack = tf.stack(hidden, 1)
                     ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
 		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
                     weights = tf.nn.softmax(weights)
 		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)		    
-		    hidden = hidden[:-1] + [context]
+		    context_hidden_sum = tf.add(context, h_t[1])
+		    if (self.config.cell == "lstmAcont"):
+			hidden = hidden[:-1] + [context]
+		    if (self.config.cell == "lstmAsum"):
+			context_hidden_sum = tf.add(tf.scalar_mul(p, context), tf.scalar_mul((1-p), h_t[1]))
+			hidden = hidden[:-1] + [context_hidden_sum]
 
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
         
-    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont"):
+    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
             W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
@@ -455,7 +461,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
