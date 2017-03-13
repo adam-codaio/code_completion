@@ -26,7 +26,7 @@ class SequenceModel(Model):
         self.config = config
         self.report = report
         self.debug = False
-        self.train_size = 2000000
+        self.train_size = 3506782
         self.debug_size = 500
         self.eval_debug_size = 100
         self.eval_size = 3000
@@ -51,8 +51,9 @@ class SequenceModel(Model):
     def run_epoch(self, sess, train_file, eval_file):
         num_train = self.debug_size if self.debug else self.train_size
         prog = Progbar(target=1 + num_train / self.config.batch_size)
+        total_loss = 0.
+        i = 0
         with open(train_file, 'r') as f:
-            i = 0
             num_examples = num_train
             while num_examples > 0:
 		if num_examples - self.config.batch_size > 0:
@@ -67,12 +68,14 @@ class SequenceModel(Model):
        	 	    batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
                 loss = self.train_on_batch(sess, *batch)
+                total_loss += loss
                 prog.update(i + 1, [("train loss", loss)])
                 if self.report: self.report.log_train_loss(loss)
             print("")
 
+        avg_loss = total_loss / (i + 1)
         with open(self.config.results, 'a') as f:
-            f.write("Loss: %.4f\n" % loss)
+            f.write("Loss: %.4f\n" % avg_loss)
         #logger.info("Evaluating on data set")
 	#eval_size = self.eval_debug_size if self.debug else self.eval_size
         #entity_scores = self.evaluate(sess, eval_file, eval_size)
@@ -134,9 +137,9 @@ class SequenceModel(Model):
         best_score = 0.
 
         term = "terminal" if self.config.terminal_pred else "non_terminal"
-        unk = "unk" if self.config.terminal_pred else "no_unk"
+        unk = "unk" if self.config.unk else "no_unk"
         with open(self.config.results, 'w') as f:
-            f.write("Running experiment with %s and %s\n" % (term, unk))
+            f.write("Running %s experiment with %s and %s\n" % (self.config.lstm, term, unk))
 
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)

@@ -43,7 +43,7 @@ class Config:
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 20
+    batch_size = 200
     n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
@@ -204,30 +204,6 @@ class LSTMModel(SequenceModel):
 	state_tuple = (c_t, h_t)
 
 	scope = "LSTM_terminal" if self.config.terminal_pred else "LSTM_non_terminal"
-        '''
-        if self.config.cell == "lstmA":
-            W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-            W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-            W_s = tf.get_variable('W_s', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-            b_o = tf.get_variable('b_o', shape = [self.config.hidden_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-            b_s = tf.get_variable('b_s', shape = [self.config.hidden_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-            with tf.variable_scope(scope):
-            for time_step in range(self.max_length):
-                if time_step > 0:
-                    tf.get_variable_scope().reuse_variables()
-                o_t, h_t= cell(x[:,time_step,:], state_tuple)
-
-                ht = tf.reshape(tf.matmul(h_t, W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
-                weights = tf.reduce_sum(ht * hidden, axis=2) * self.attn_mask_placeholder
-                weights = tf.nn.softmax(weights)
-
-                context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-                o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-                preds.append(tf.matmul(o_drop_t, U) + b2)
-        preds = tf.stack(preds, 1)
-        final_preds = tf.boolean_mask(preds, self.mask_placeholder)
-        '''
-
 
     	with tf.variable_scope(scope):
             for time_step in range(self.max_length):
@@ -237,14 +213,27 @@ class LSTMModel(SequenceModel):
         	o_drop_t = tf.nn.dropout(o_t, dropout_rate)
         	preds.append(tf.matmul(o_drop_t, U) + b2)
                 hidden.append(h_t[1])
+
+		if (self.config.cell == "lstmAcont"):
+		    W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+                    W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
+                    W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
+                    b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+                    b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
+		    
+		    hidden_stack = tf.stack(hidden, 1)
+                    ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
+		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
+                    weights = tf.nn.softmax(weights)
+		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)		    
+		    hidden = hidden[:-1] + [context]
+
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
-	    # print hidden.get_shape().as_list()
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
-	    # print final_hidden.get_shape().as_list()
         
-    	if self.config.cell == "lstmA":
+    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
             W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
@@ -255,15 +244,14 @@ class LSTMModel(SequenceModel):
             weights = tf.nn.softmax(weights)
 
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-	    # print context.get_shape().as_list()
             final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
         
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
             nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
-            U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit)
-            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0))
+            U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit,dtype=tf.float64)
+            b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
             final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
 	
     	return final_preds
@@ -354,7 +342,8 @@ def do_train(args):
     # Set up some parameters.
     config = Config(args)
     config.unk = True if args.unk == 'unk' else False
- 
+    config.lstm = args.cell
+
     code_comp = code_comp_utils.get_code_comp()
    
     embeddings = code_comp_utils.get_embeddings()
@@ -466,7 +455,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmA"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
