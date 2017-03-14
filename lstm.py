@@ -373,7 +373,7 @@ def do_train(args):
         logger.info("took %.2f seconds", time.time() - start)
 
         init = tf.global_variables_initializer()
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(max_to_keep=50)
 
         with tf.Session() as session:
             session.run(init)
@@ -404,7 +404,7 @@ def do_evaluate(args):
             session.run(init)
             saver.restore(session, args.model_path)
             wig_precision, precision = model.evaluate(session, args.data_path, config.eval_size)
-            print wig_precision, precision
+            print "%.4f %.4f" % (wig_precision, precision)
 
 def do_shell(args):
     config = Config(args.model_path)
