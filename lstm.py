@@ -48,7 +48,7 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized.txt'
+    train_nt = 'data/train_nt_vectorized_small.txt'
     train_t = 'data/train_t_vectorized.txt'
     dev_nt = 'data/dev_nt_vectorized.txt'
     dev_t = 'data/dev_t_vectorized.txt'
@@ -160,9 +160,12 @@ class LSTMModel(SequenceModel):
         Returns:
             embeddings: tf.Tensor of shape (None, n_features*embed_size)
         """
-        #terminal_embed_tensor = tf.Variable(self.terminal_embeddings)
+        #terminal_embed_tensor = tf.nn.embedding_lookup(self.embeddings, self.terminal_embeddings)
         #non_terminal_embed_tensor = tf.Variable(self.non_terminal_embeddings)
-        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.embeddings, self.non_terminal_input_placeholder)
+	'''sess = tf.Session()
+	print sess.run(self.non_terminal_input_placeholder)
+	sess.close()'''
+        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.non_terminal_embeddings, (self.non_terminal_input_placeholder-50001))
         #output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
         embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
         return embeddings
@@ -255,11 +258,11 @@ class LSTMModel(SequenceModel):
             weights = tf.nn.softmax(weights)
 	
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-            print "context shape: ", context.get_shape().as_list()
+            #print "context shape: ", context.get_shape().as_list()
 	    final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
 
-        if (self.config.cell == "lstmAcopy"):
+        '''if (self.config.cell == "lstmAcopy"):
 	    print "copying"
 	    W_h_switch = tf.get_variable('W_h_switch', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
 	    W_e_switch = tf.get_variable('W_e_switch', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
@@ -267,7 +270,7 @@ class LSTMModel(SequenceModel):
 	    b_switch = tf.get_variable('b_switch', shape = [output_size], dtype = tf.float64, initializer = xinit)
 	    
  	    term1 = tf.reshape(tf.matmul(final_hidden, W_h), tf.shape(x)[0], -1, self.config.hidden_size))
-	    #term2 = 
+	    #term2 = '''
  
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
@@ -349,6 +352,7 @@ class LSTMModel(SequenceModel):
         self.max_length = 49#min(Config.max_length, helper.max_length)
         Config.max_length = self.max_length # Just in case people make a mistake.
         self.embeddings = embeddings
+	self.non_terminal_embeddings = tf.get_variable('NT_E', shape=[176, 50], dtype=tf.float64, trainable=True, initializer=tf.contrib.layers.xavier_initializer(dtype=tf.float64)) 
 	self.grad_norm = None
 
         # Defining placeholders.
