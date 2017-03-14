@@ -128,7 +128,10 @@ class LSTMModel(SequenceModel):
         """
         feed_dict = {}
         if inputs_batch is not None:
-	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[:,::2]
+	    temp = inputs_batch[:,::2]
+	    temp[temp != 0] = temp[temp != 0] - 50001
+	    feed_dict[self.non_terminal_input_placeholder] = temp
+
 	    feed_dict[self.terminal_input_placeholder] = inputs_batch[:,1::2]
 	    if self.config.terminal_pred:
 		feed_dict[self.non_terminal_input_placeholder] = feed_dict[self.non_terminal_input_placeholder][:,:-1]
@@ -160,9 +163,9 @@ class LSTMModel(SequenceModel):
         Returns:
             embeddings: tf.Tensor of shape (None, n_features*embed_size)
         """
-        #terminal_embed_tensor = tf.Variable(self.terminal_embeddings)
+        #terminal_embed_tensor = tf.nn.embedding_lookup(self.embeddings, self.terminal_embeddings)
         #non_terminal_embed_tensor = tf.Variable(self.non_terminal_embeddings)
-        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.embeddings, self.non_terminal_input_placeholder)
+        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.non_terminal_embeddings, (self.non_terminal_input_placeholder))
         #output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
         embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
         return embeddings
@@ -244,7 +247,7 @@ class LSTMModel(SequenceModel):
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
         
-    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum") or (self.config.cell == "lstmAwsum"):
+    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum") or (self.config.cell == "lstmAwsum") or (self.config.cell == "lstmAcopy"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
             W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
@@ -255,10 +258,10 @@ class LSTMModel(SequenceModel):
             weights = tf.nn.softmax(weights)
 	
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
-            print "context shape: ", context.get_shape().as_list()
+            #print "context shape: ", context.get_shape().as_list()
 	    final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
-        
+
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
             nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
@@ -339,6 +342,7 @@ class LSTMModel(SequenceModel):
         self.max_length = 49#min(Config.max_length, helper.max_length)
         Config.max_length = self.max_length # Just in case people make a mistake.
         self.embeddings = embeddings
+	self.non_terminal_embeddings = tf.get_variable('NT_E', shape=[176, 50], dtype=tf.float64, trainable=True, initializer=tf.contrib.layers.xavier_initializer(dtype=tf.float64)) 
 	self.grad_norm = None
 
         # Defining placeholders.
