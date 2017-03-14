@@ -54,6 +54,8 @@ class Config:
     dev_t = 'data/dev_t_vectorized.txt'
     test_nt = 'data/test_nt_vectorized.txt'
     test_t = 'data/test_t_vectorized.txt'
+    eval_size = 1011652
+    eval_batch_size = 50000
 
     def __init__(self, args):
         self.cell = args.cell
@@ -364,7 +366,7 @@ def do_train(args):
    
     embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
-    helper = ModelHelper(code_comp.tok2id, 49)
+    helper = ModelHelper(code_comp.tok2id, code_comp.id2tok, 49)
     helper.save(config.output_path)
 
     handler = logging.FileHandler(config.log_output)
@@ -381,7 +383,7 @@ def do_train(args):
         logger.info("took %.2f seconds", time.time() - start)
 
         init = tf.global_variables_initializer()
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(max_to_keep=50)
 
         with tf.Session() as session:
             session.run(init)
@@ -391,18 +393,18 @@ def do_train(args):
                 model.fit(session, saver, config.train_t, config.test_t)
 
 def do_evaluate(args):
-    '''I don't think this should be working yet'''
-    config = Config(args.model_path)
-    helper = ModelHelper.load(args.model_path)
-    input_data = read_conll(args.data)
-    embeddings = load_embeddings(args, helper)
+    config = Config(args)
+    config.unk = True if args.unk == 'unk' else False
+  
+    code_comp = code_comp_utils.get_code_comp()
+    embeddings = code_comp_utils.get_embeddings()
     config.embed_size = embeddings.shape[1]
+    helper = ModelHelper(code_comp.tok2id, code_comp.id2tok, 49)
 
     with tf.Graph().as_default():
         logger.info("Building model...",)
         start = time.time()
-        model = LSTMModel(helper, config, embeddings)
-
+        model = LSTMModel(code_comp, config, embeddings)
         logger.info("took %.2f seconds", time.time() - start)
 
         init = tf.global_variables_initializer()
@@ -410,10 +412,9 @@ def do_evaluate(args):
 
         with tf.Session() as session:
             session.run(init)
-            saver.restore(session, model.config.model_output)
-            for sentence, labels, predictions in model.output(session, input_data):
-                #predictions = [LBLS[l] for l in predictions]
-                print_sentence(args.output, sentence, labels, predictions)
+            saver.restore(session, args.model_path)
+            wig_precision, precision = model.evaluate(session, args.data_path, config.eval_size)
+            print "%.4f %.4f" % (wig_precision, precision)
 
 def do_shell(args):
     config = Config(args.model_path)
@@ -478,14 +479,13 @@ if __name__ == "__main__":
     command_parser.set_defaults(func=do_train)
 
     command_parser = subparsers.add_parser('evaluate', help='')
-    command_parser.add_argument('-d', '--data', type=argparse.FileType('r'), default="data/dev.conll", help="Training data")
     command_parser.add_argument('-m', '--model-path', help="Training data")
-    command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
-    command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-d', '--data-path', choices=["data/test_nt_vectorized.txt", "data/test_t_vectorized.txt"], default="data/test_nt_vectorized.txt", help="Evaluation data")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-o', '--output', type=argparse.FileType('w'), default=sys.stdout, help="Training data")
-    command_parser.add_argument('-tnt', '--non-terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
-    command_parser.add_argument('-cp', '--clip', choices=["terminal", "non_terminal"], default="non_terminal", help="clip gradients")
+    command_parser.add_argument('-nt', '--non-terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
+    command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
+    command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
     command_parser.set_defaults(func=do_evaluate)
 
     command_parser = subparsers.add_parser('shell', help='')

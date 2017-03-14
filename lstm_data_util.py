@@ -66,8 +66,9 @@ class ModelHelper(object):
     """
     This helper takes care of preprocessing data, constructing embeddings, etc.
     """
-    def __init__(self, tok2id, max_length):
+    def __init__(self, tok2id, id2tok, max_length):
         self.tok2id = tok2id
+        self.id2tok = id2tok
         #self.START = [tok2id[START_TOKEN], tok2id[P_CASE + "aa"]]
         #self.END = [tok2id[END_TOKEN], tok2id[P_CASE + "aa"]]
         self.max_length = max_length

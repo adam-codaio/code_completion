@@ -76,35 +76,21 @@ class SequenceModel(Model):
         avg_loss = total_loss / (i + 1)
         with open(self.config.results, 'a') as f:
             f.write("Loss: %.4f\n" % avg_loss)
-        #logger.info("Evaluating on data set")
-	#eval_size = self.eval_debug_size if self.debug else self.eval_size
-        #entity_scores = self.evaluate(sess, eval_file, eval_size)
-        
-        #logger.debug("Token-level confusion matrix:\n" + token_cm.as_table())
-        #logger.debug("Token-level scores:\n" + token_cm.summary())
-        #logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
-	#logger.info("Accuracy: %.2f", entity_scores)
-
-        
-
-        #f1 = entity_scores[-1]
-        #return f1
-	#return entity_scores
 
     def evaluate(self, sess, input_file, size):
         """
         Reports the output of the model on examples (uses helper to featurize each example).
         """
 
-        correct_preds, total_preds = 0., 0.
+        correct_preds, wiggle_preds, total_preds = 0., 0., 0.
         
-        prog = Progbar(target=1 + int(size / self.config.batch_size))
+        prog = Progbar(target=1 + int(size / self.config.eval_batch_size))
 	with open (input_file, 'r') as f:
 	    i = 0
             num_examples = size
 	    while num_examples > 0:
-		if num_examples - self.config.batch_size > 0:
-		    next_batch = self.config.batch_size
+		if num_examples - self.config.eval_batch_size > 0:
+		    next_batch = self.config.eval_batch_size
 		else:
 		    next_batch = num_examples
 	        b = get_minibatch(f, next_batch)
@@ -121,17 +107,23 @@ class SequenceModel(Model):
             	preds_ = self.predict_on_batch(sess, *batch)
 
                 for label, label_ in zip(gold_values, preds_):
+                    wiggle_comp = 0
+                    if not self.config.terminal_pred:
+                        if self.helper.id2tok[label + offset][0] == self.helper.id2tok[label_ + offset][0]:
+                            wiggle_comp = 1
                     if not self.config.unk and self.config.terminal_pred:
                         if label != self.config.unk_label:
+                            wiggle_preds += wiggle_comp
 	                    correct_preds += (label == label_)
                             total_preds += 1
                     else:
+                        wiggle_preds += wiggle_comp
                         correct_preds += (label == label_)
                         total_preds += 1
                 
                 prog.update(i + 1, [])
 
-        return correct_preds / total_preds
+        return wiggle_preds / total_preds, correct_preds / total_preds
 
     def fit(self, sess, saver, train_file, eval_file):
         best_score = 0.
