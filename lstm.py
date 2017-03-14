@@ -48,12 +48,12 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized_small.txt'
-    train_t = 'data/train_t_vectorized_small.txt'
-    dev_nt = 'data/dev_nt_vectorized_small.txt'
-    dev_t = 'data/dev_t_vectorized_small.txt'
-    test_nt = 'data/test_nt_vectorized_small.txt'
-    test_t = 'data/test_t_vectorized_small.txt'
+    train_nt = 'data/train_nt_vectorized.txt'
+    train_t = 'data/train_t_vectorized.txt'
+    dev_nt = 'data/dev_nt_vectorized.txt'
+    dev_t = 'data/dev_t_vectorized.txt'
+    test_nt = 'data/test_nt_vectorized.txt'
+    test_t = 'data/test_t_vectorized.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -262,16 +262,6 @@ class LSTMModel(SequenceModel):
 	    final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
 
-        '''if (self.config.cell == "lstmAcopy"):
-	    print "copying"
-	    W_h_switch = tf.get_variable('W_h_switch', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-	    W_e_switch = tf.get_variable('W_e_switch', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
-	    W_c_switch = tf.get_variable('W_c_switch', shape = [self.config.output_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
-	    b_switch = tf.get_variable('b_switch', shape = [output_size], dtype = tf.float64, initializer = xinit)
-	    
- 	    term1 = tf.reshape(tf.matmul(final_hidden, W_h), tf.shape(x)[0], -1, self.config.hidden_size))
-	    #term2 = '''
- 
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
             nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
