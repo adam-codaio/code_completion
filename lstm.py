@@ -49,11 +49,11 @@ class Config:
     lr = 0.001
     unk_label = 50000
     train_nt = 'data/train_nt_vectorized_small.txt'
-    train_t = 'data/train_t_vectorized.txt'
-    dev_nt = 'data/dev_nt_vectorized.txt'
-    dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized.txt'
-    test_t = 'data/test_t_vectorized.txt'
+    train_t = 'data/train_t_vectorized_small.txt'
+    dev_nt = 'data/dev_nt_vectorized_small.txt'
+    dev_t = 'data/dev_t_vectorized_small.txt'
+    test_nt = 'data/test_nt_vectorized_small.txt'
+    test_t = 'data/test_t_vectorized_small.txt'
 
     def __init__(self, args):
         self.cell = args.cell
@@ -128,7 +128,10 @@ class LSTMModel(SequenceModel):
         """
         feed_dict = {}
         if inputs_batch is not None:
-	    feed_dict[self.non_terminal_input_placeholder] = inputs_batch[:,::2]
+	    temp = inputs_batch[:,::2]
+	    temp[temp != 0] = temp[temp != 0] - 50001
+	    feed_dict[self.non_terminal_input_placeholder] = temp
+
 	    feed_dict[self.terminal_input_placeholder] = inputs_batch[:,1::2]
 	    if self.config.terminal_pred:
 		feed_dict[self.non_terminal_input_placeholder] = feed_dict[self.non_terminal_input_placeholder][:,:-1]
@@ -162,10 +165,7 @@ class LSTMModel(SequenceModel):
         """
         #terminal_embed_tensor = tf.nn.embedding_lookup(self.embeddings, self.terminal_embeddings)
         #non_terminal_embed_tensor = tf.Variable(self.non_terminal_embeddings)
-	'''sess = tf.Session()
-	print sess.run(self.non_terminal_input_placeholder)
-	sess.close()'''
-        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.non_terminal_embeddings, (self.non_terminal_input_placeholder-50001))
+        embeddings = tf.nn.embedding_lookup(self.embeddings, self.terminal_input_placeholder) + tf.nn.embedding_lookup(self.non_terminal_embeddings, (self.non_terminal_input_placeholder))
         #output = tf.nn.embedding_lookup(embed_tensor, self.input_placeholder)
         embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_token_features * self.config.embed_size])
         return embeddings
