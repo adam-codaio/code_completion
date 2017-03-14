@@ -244,7 +244,7 @@ class LSTMModel(SequenceModel):
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
         
-    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum") or (self.config.cell == "lstmAwsum"):
+    	if (self.config.cell == "lstmAend") or (self.config.cell == "lstmAcont") or (self.config.cell == "lstmAsum") or (self.config.cell == "lstmAwsum") or (self.config.cell == "lstmAcopy"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
             W_o = tf.get_variable('W_o', shape = [2*self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
             W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
@@ -258,7 +258,17 @@ class LSTMModel(SequenceModel):
             print "context shape: ", context.get_shape().as_list()
 	    final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
-        
+
+        if (self.config.cell == "lstmAcopy"):
+	    print "copying"
+	    W_h_switch = tf.get_variable('W_h_switch', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+	    W_e_switch = tf.get_variable('W_e_switch', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
+	    W_c_switch = tf.get_variable('W_c_switch', shape = [self.config.output_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+	    b_switch = tf.get_variable('b_switch', shape = [output_size], dtype = tf.float64, initializer = xinit)
+	    
+ 	    term1 = tf.reshape(tf.matmul(final_hidden, W_h), tf.shape(x)[0], -1, self.config.hidden_size))
+	    #term2 = 
+ 
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
             nt = tf.reshape(nt, [-1, self.config.n_token_features * self.config.embed_size])
