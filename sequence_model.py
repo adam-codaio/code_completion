@@ -67,6 +67,7 @@ class SequenceModel(Model):
 		for col in zip(*b):
        	 	    batch = [np.array(col) for col in zip(*b)]
                 num_examples -= next_batch
+		
                 loss = self.train_on_batch(sess, *batch)
                 total_loss += loss
                 prog.update(i + 1, [("train loss", loss)])
