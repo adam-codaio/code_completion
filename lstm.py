@@ -48,12 +48,12 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized.txt'
-    train_t = 'data/train_t_vectorized.txt'
-    dev_nt = 'data/dev_nt_vectorized.txt'
-    dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized.txt'
-    test_t = 'data/test_t_vectorized.txt'
+    train_nt = 'data/train_nt_vectorized_small.txt'
+    train_t = 'data/train_t_vectorized_small.txt'
+    dev_nt = 'data/dev_nt_vectorized_small.txt'
+    dev_t = 'data/dev_t_vectorized_small.txt'
+    test_nt = 'data/test_nt_vectorized_small.txt'
+    test_t = 'data/test_t_vectorized_small.txt'
     eval_size = 1011652
     eval_batch_size = 50000
 
