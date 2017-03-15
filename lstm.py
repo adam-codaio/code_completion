@@ -48,7 +48,7 @@ class Config:
     max_grad_norm = 5.
     lr = 0.001
     unk_label = 50000
-    train_nt = 'data/train_nt_vectorized.txt'
+    train_nt = 'data/train_nt_vectorized_small.txt'
     train_t = 'data/train_t_vectorized.txt'
     dev_nt = 'data/dev_nt_vectorized.txt'
     dev_t = 'data/dev_t_vectorized.txt'
@@ -225,24 +225,43 @@ class LSTMModel(SequenceModel):
                     W_s = tf.get_variable('W_s', shape = [output_size, output_size], dtype = tf.float64, initializer = xinit)
                     b_o = tf.get_variable('b_o', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
                     b_s = tf.get_variable('b_s', shape = [output_size], dtype = tf.float64, initializer = tf.constant_initializer(0.0))
-		    p = tf.get_variable('p', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(0.0, 1.0))
-		    alpha = tf.get_variable('alpha', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
-		    beta = tf.get_variable('beta', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))	
-		    
+		
 		    hidden_stack = tf.stack(hidden, 1)
                     ht = tf.reshape(tf.matmul(h_t[1], W_a), (tf.shape(x)[0], -1, self.config.hidden_size))
 		    weights = tf.reduce_sum(ht * hidden_stack, axis=2) * tf.slice(self.attn_mask_placeholder, [0,0] , [-1,time_step + 1])
                     weights = tf.nn.softmax(weights)
 		    context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden_stack, axis = 1)		    
 		    context_hidden_sum = tf.add(context, h_t[1])
+		    
 		    if (self.config.cell == "lstmAcont"):
 			hidden = hidden[:-1] + [context]
 		    if (self.config.cell == "lstmAsum"):
+			alpha = tf.get_variable('alpha', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
+                        beta = tf.get_variable('beta', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
 			straightSum = tf.add(tf.scalar_mul(alpha, context), tf.scalar_mul(beta, h_t[1]))
 			hidden = hidden[:-1] + [straightSum]
 		    if (self.config.cell == "lstmAwsum"):
+			W_ph = tf.get_variable('W_ph', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+                        #W_pc = tf.get_variable('W_pc', shape = [self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
+			W_pc = tf.get_variable('W_pc', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit) 
+			W_px = tf.get_variable('W_px', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
+			#hTerm = tf.reshape(tf.matmul(h_t[1], W_ph), (tf.shape(x)[0], -1, self.config.hidden_size))
+			hTerm = tf.matmul(h_t[1], W_ph)
+			#print "hTerm: ", hTerm.get_shape().as_list()
+			cTerm = tf.matmul(context, W_pc)
+			#cTerm = tf.reshape(tf.matmul(context, W_pc), (tf.shape(x)[0], -1, self.config.hidden_size)) 
+			#print "cTerm: ", cTerm.get_shape().as_list()
+			#xTerm = tf.reshape(tf.matmul(x[:,time_step,:], W_px), (tf.shape(x)[0], -1, self.config.hidden_size))
+			xTerm = tf.matmul(x[:,time_step,:], W_px)
+			#print "xTerm: ", xTerm.get_shape().as_list()
+			p_arr = tf.sigmoid(hTerm + cTerm + xTerm)
+			p = tf.reduce_max(p_arr)
+			#print "p val: ", p
+			#print "p: ", p.get_shape().as_list()	
+			#p = tf.get_variable('p', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(0.0, 1.0))
 			weightedSum = tf.add(tf.scalar_mul(p, context), tf.scalar_mul((1-p), h_t[1]))
-                        hidden = hidden[:-1] + [weightedSum]
+                        #weightedSum = tf.add(tf.matmul(p, context), tf.matmul((1-p), h_t[1]))
+			hidden = hidden[:-1] + [weightedSum]
 
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
