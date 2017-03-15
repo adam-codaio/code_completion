@@ -49,10 +49,10 @@ class Config:
     lr = 0.001
     unk_label = 50000
     train_nt = 'data/train_nt_vectorized_small.txt'
-    train_t = 'data/train_t_vectorized.txt'
-    dev_nt = 'data/dev_nt_vectorized.txt'
-    dev_t = 'data/dev_t_vectorized.txt'
-    test_nt = 'data/test_nt_vectorized.txt'
+    train_t = 'data/train_t_vectorized_small.txt'
+    dev_nt = 'data/dev_nt_vectorized_small.txt'
+    dev_t = 'data/dev_t_vectorized_small.txt'
+    test_nt = 'data/test_nt_vectorized_small.txt'
     test_t = 'data/test_t_vectorized.txt'
     eval_size = 1011652
     eval_batch_size = 50000
@@ -236,15 +236,27 @@ class LSTMModel(SequenceModel):
 		    if (self.config.cell == "lstmAcont"):
 			hidden = hidden[:-1] + [context]
 		    if (self.config.cell == "lstmAsum"):
-			alpha = tf.get_variable('alpha', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
-                        beta = tf.get_variable('beta', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
-			straightSum = tf.add(tf.scalar_mul(alpha, context), tf.scalar_mul(beta, h_t[1]))
+			#alpha = tf.get_variable('alpha', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
+                        #beta = tf.get_variable('beta', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(-1.0, 2.0))
+			'''I have commented out your original alphas and betas above and below is the code for alpha beta sum incorporating the embedding and using elementwise mult
+			'''
+			W_alpha = tf.get_variable('W_alpha', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+			W_beta = tf.get_variable('W_beta', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+			U_alpha = tf.get_variable('U_alpha', shape = [self.config.embed_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+			U_beta = tf.get_variable('U_beta', shape = [self.config.embed_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+
+			alpha = tf.sigmoid(tf.matmul(context, W_alpha)+tf.matmul(x[:,time_step,:],U_alpha))
+			beta = tf.sigmoid(tf.matmul(h_t[1], W_beta)+tf.matmul(x[:,time_step,:],U_beta))
+			#straightSum = tf.add(tf.scalar_mul(alpha, context), tf.scalar_mul(beta, h_t[1]))
+			straightSum = alpha*context + beta*h_t[1]
 			hidden = hidden[:-1] + [straightSum]
 		    if (self.config.cell == "lstmAwsum"):
 			W_ph = tf.get_variable('W_ph', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
                         #W_pc = tf.get_variable('W_pc', shape = [self.config.hidden_size, output_size], dtype = tf.float64, initializer = xinit)
 			W_pc = tf.get_variable('W_pc', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit) 
-			W_px = tf.get_variable('W_px', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
+			#W_px = tf.get_variable('W_px', shape = [self.config.hidden_size, self.config.embed_size], dtype = tf.float64, initializer = xinit)
+			'''here I changed the dims of Wpx because it technically should be embed size X hidden size but because these are the same for us it makes no difference'''
+			W_px = tf.get_variable('W_px', shape = [self.config.embed_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
 			#hTerm = tf.reshape(tf.matmul(h_t[1], W_ph), (tf.shape(x)[0], -1, self.config.hidden_size))
 			hTerm = tf.matmul(h_t[1], W_ph)
 			#print "hTerm: ", hTerm.get_shape().as_list()
@@ -255,11 +267,13 @@ class LSTMModel(SequenceModel):
 			xTerm = tf.matmul(x[:,time_step,:], W_px)
 			#print "xTerm: ", xTerm.get_shape().as_list()
 			p_arr = tf.sigmoid(hTerm + cTerm + xTerm)
-			p = tf.reduce_max(p_arr)
+			#p = tf.reduce_max(p_arr)
 			#print "p val: ", p
 			#print "p: ", p.get_shape().as_list()	
 			#p = tf.get_variable('p', shape = () ,dtype = tf.float64, initializer = tf.random_uniform_initializer(0.0, 1.0))
-			weightedSum = tf.add(tf.scalar_mul(p, context), tf.scalar_mul((1-p), h_t[1]))
+			#weightedSum = tf.add(tf.scalar_mul(p, context), tf.scalar_mul((1-p), h_t[1]))
+			'''here is where I do the elementwise mult'''
+			weightedSum = (p_arr*context)+((1-p_arr)*h_t[1])
                         #weightedSum = tf.add(tf.matmul(p, context), tf.matmul((1-p), h_t[1]))
 			hidden = hidden[:-1] + [weightedSum]
 
