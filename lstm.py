@@ -92,13 +92,15 @@ def pad_sequences(data, max_length, terminal_pred):
         in_pad = max_length*2 + terminal_pred - len(code_snippet)
         mask_pad = int((len(code_snippet)-terminal_pred)/2)
         if in_pad <= 0:
-            ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True], [1] * (max_length-1) + [0]))
+            ret.append((code_snippet[:max_length*2+terminal_pred], labels, [False] * (max_length-1) + [True], [1] * (max_length-1) + [0], [False] * (max_length-2) + [True] + [False]))
         else:
             mask = [False] * max_length
 	    mask[mask_pad] = True
             attn_mask = np.zeros(max_length)
             attn_mask[:mask_pad] = 1
-            ret.append((code_snippet + zero_vector * in_pad, labels, mask, list(attn_mask)))
+	    copy_mask = [False] * (max_length)
+	    copy_mask[mask_pad - 1] = True
+            ret.append((code_snippet + zero_vector * in_pad, labels, mask, list(attn_mask), copy_mask))
                    
     return ret
 
@@ -114,10 +116,11 @@ class LSTMModel(SequenceModel):
 	self.next_non_terminal_input_placeholder = tf.placeholder(tf.int32, shape=[None])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=([None]))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
+        self.copy_mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.max_length))
         self.attn_mask_placeholder = tf.placeholder(tf.float64, shape=(None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float64)
 
-    def create_feed_dict(self, inputs_batch, mask_batch, attn_mask_batch, labels_batch=None, dropout=1):
+    def create_feed_dict(self, inputs_batch, mask_batch, copy_mask, attn_mask_batch, labels_batch=None, dropout=1):
         """Creates the feed_dict for the dependency parser.
 
         A feed_dict takes the form of:
@@ -129,6 +132,8 @@ class LSTMModel(SequenceModel):
 
         """
         feed_dict = {}
+	if copy_mask is not None:
+	    feed_dict[self.copy_mask_placeholder] = copy_mask
         if inputs_batch is not None:
 	    temp = inputs_batch[:,::2]
 	    temp[temp != 0] = temp[temp != 0] - 50001
@@ -262,11 +267,13 @@ class LSTMModel(SequenceModel):
 			p_arr = tf.sigmoid(hTerm + cTerm + xTerm)
 			weightedSum = (p_arr*context)+((1-p_arr)*h_t[1])
 			hidden = hidden[:-1] + [weightedSum]
-
+	    
+	    hiddenSaved = hidden
 	    preds = tf.stack(preds, 1)
             hidden = tf.stack(hidden, 1)
 	    final_preds = tf.boolean_mask(preds, self.mask_placeholder)
 	    final_hidden = tf.boolean_mask(hidden, self.mask_placeholder)
+	    secondLast_hidden = tf.boolean_mask(hidden, self.copy_mask_placeholder)
         
     	if not (self.config.cell == "lstm"):
             W_a = tf.get_variable('W_a', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
@@ -281,6 +288,43 @@ class LSTMModel(SequenceModel):
             context = tf.reduce_sum(tf.reshape(weights, (tf.shape(weights)[0], tf.shape(weights)[1], -1)) * hidden, axis = 1)
 	    final_preds = tf.tanh(tf.matmul(tf.concat(1, [context, final_hidden]), W_o) + b_o)
             final_preds = tf.matmul(final_preds, W_s) + b_s
+	    print "context size: ", context.get_shape().as_list()
+
+	if (self.config.cell == "lstmAcopy"):
+	    print "x shape: ", x.get_shape().as_list()[0]
+	    W_h_switch = tf.get_variable('W_h_switch', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+	    W_e_switch = tf.get_variable('W_e_switch', shape = [self.config.embed_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+	    W_c_switch = tf.get_variable('W_c_switch', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+	    #b_init = tf.zeros([tf.shape(x)[0], 1], dtype=tf.float64)
+	    #b_switch = tf.Variable(b_init, name='b_switch', validate_shape = False)
+	    v_switch = tf.get_variable('v_switch', shape = [self.config.hidden_size, 1], dtype = tf.float64, initializer = xinit) 
+ 	    
+	    hidden_s = tf.matmul(final_hidden, W_h_switch)
+	    embed_s = tf.matmul(x[:,self.max_length - 2,:], W_e_switch)
+	    context_s = tf.matmul(context, W_c_switch)
+	    newVar = tf.matmul((hidden_s + embed_s + context_s), v_switch)
+	    print "newVar size: ", newVar.get_shape().as_list()
+	    switch = tf.sigmoid(tf.matmul((hidden_s + embed_s + context_s), v_switch)) # + b_switch)
+	    print "switch size: ", switch.get_shape().as_list()
+     
+	    W_h_pointer = tf.get_variable('W_h_pointer', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            W_e_pointer = tf.get_variable('W_e_pointer', shape = [self.config.embed_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            W_c_pointer = tf.get_variable('W_c_pointer', shape = [self.config.hidden_size, self.config.hidden_size], dtype = tf.float64, initializer = xinit)
+            #b_pointer = tf.Variable(b_init, name='b_pointer', validate_shape = False)
+            v_pointer = tf.get_variable('v_pointer', shape = [self.config.hidden_size, 1], dtype = tf.float64, initializer = xinit)
+	    
+	    hidden_p = tf.matmul(secondLast_hidden, W_h_pointer)
+            embed_p = tf.matmul(tf.boolean_mask(x, self.copy_mask_placeholder), W_e_pointer)
+	    pointer_arr = []
+	    for time_step in range(self.max_length):
+	    	timeStep_p = tf.matmul(hiddenSaved[time_step], W_c_pointer)
+		#temp = tf.exp(tf.matmul((hidden_p + embed_p + timeStep_p), v_pointer) + b_pointer)
+		#print "pointer size: ", temp.get_shape().as_list() 	
+	        pointer_arr.append(tf.exp(tf.matmul((hidden_p + embed_p + timeStep_p), v_pointer))) # + b_pointer))		    
+	    pointer_arr = tf.stack(pointer_arr, 1)
+	    print "pointer arr size: ", pointer_arr.get_shape().as_list()
+	    pointer_val = tf.arg_max(pointer_arr, 1)
+	    print "pointer val size: ", pointer_val.get_shape().as_list()
 
     	if self.config.terminal_pred:
             nt = tf.nn.embedding_lookup(self.embeddings, self.next_non_terminal_input_placeholder)
@@ -288,7 +332,10 @@ class LSTMModel(SequenceModel):
             U_nt = tf.get_variable('U_nt', shape = [self.config.hidden_size, output_size], initializer = xinit,dtype=tf.float64)
             b_t = tf.get_variable('b_t', shape = [output_size], initializer = tf.constant_initializer(0.0), dtype=tf.float64)
             final_preds = final_preds + tf.matmul(nt, U_nt) + b_t
-	
+	    
+  	    if (self.config.cell == "lstmAcopy"):
+		return (final_preds, switch, pointer_val)
+
     	return final_preds
 
     def add_loss_op(self, preds):
@@ -298,9 +345,14 @@ class LSTMModel(SequenceModel):
         Returns:
             loss: A 0-d tensor (scalar)
         """
-        loss = tf.reduce_mean(
-                        tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds,
-                                                                       labels=self.labels_placeholder)) 
+	if (type(preds) is tuple):
+	    print "doing add_loss_op for copy tuple"
+	    final_preds, switch, pointer = preds
+	    g = np.where(self.labels_placeholder == 50000 , 0 , 1)
+	    pointer_label = final_preds.eval()[:, pointer.eval()]
+	    loss = 0  		
+	else:
+            loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds,labels=self.labels_placeholder)) 
         return loss
 
     def add_training_op(self, loss):
@@ -346,13 +398,13 @@ class LSTMModel(SequenceModel):
 	        ret.append([label[0], label_])
         return ret
 
-    def predict_on_batch(self, sess, inputs_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask)
+    def predict_on_batch(self, sess, inputs_batch, mask_batch, attn_mask, copy_mask):
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch, copy_mask=copy_mask, attn_mask_batch=attn_mask)
         predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
-    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch, attn_mask):
-        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, attn_mask_batch=attn_mask,
+    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch, attn_mask, copy_mask):
+        feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch, copy_mask=copy_mask, attn_mask_batch=attn_mask,
                                      dropout=Config.dropout)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
@@ -490,7 +542,7 @@ if __name__ == "__main__":
     #command_parser.add_argument('-dd', '--data-dev', type=argparse.FileType('r'), default="data/dev.conll", help="Dev data")
     #command_parser.add_argument('-v', '--vocab', type=argparse.FileType('r'), default="data/vocab.txt", help="Path to vocabulary file")
     #command_parser.add_argument('-vv', '--vectors', type=argparse.FileType('r'), default="data/wordVectors.txt", help="Path to word vectors file")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum_fn", "lstmAsum", "lstmAwsum_fn"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum_fn", "lstmAsum", "lstmAwsum_fn", "lstmAcopy"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
