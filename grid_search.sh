@@ -6,8 +6,8 @@ do
     do
         for bs in 400 800 1600
         do
-            python lstm.py train -d $d -lr $lr -bs $bs
-            python lstm.py train -d $d -lr $lr -bs $bs -c lstmAsum_fn
+            python lstm.py train -d $d -lr $lr -bs $bs -e 1
+            python lstm.py train -d $d -lr $lr -bs $bs -c lstmAsum_fn -e 1
         done
     done
 done

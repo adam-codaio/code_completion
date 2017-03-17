@@ -494,6 +494,10 @@ if __name__ == "__main__":
     command_parser.add_argument('-nt', '--non_terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
     command_parser.add_argument('-unk', '--unk', choices=["unk", "no_unk"], default="unk", help="deny unk predictions")
+    command_parser.add_argument('-d', '--dropout', default=0.5, help="dropout rate")
+    command_parser.add_argument('-lr', '--learning_rate', default=0.001, help="learning rate")
+    command_parser.add_argument('-bs', '--batch_size', default=800, help="batch size")
+    command_parser.add_argument('-e', '--epoch', default=12, help="num epochs")
     command_parser.set_defaults(func=do_train)
 
     command_parser = subparsers.add_parser('evaluate', help='')
