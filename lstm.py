@@ -63,6 +63,18 @@ class Config:
 	if args.non_terminal == "terminal": self.terminal_pred = 1
 	self.clip_gradients = args.clip
 
+        if "dropout" in args:
+            self.dropout = args.dropout
+
+        if "epoch" in args:
+            self.n_epochs = args.epoch
+
+        if "batch_size" in args:
+            self.batch_size = args.batch_size
+
+        if "learning_rate" in args:
+            self.lr = args.learning_rate
+
         if "output_path" in args:
             # Where to save things.
             self.output_path = args.output_path
