@@ -20,6 +20,8 @@ class Config(object):
     id2tok_file = 'pickles/id2tok.pickle'
     embeddings_file = 'pickles/wordVectors.pickle'
 
+config = Config()
+
 def vectorize(examples, tok2id):
     vec_examples = []
     num_examples = 0
