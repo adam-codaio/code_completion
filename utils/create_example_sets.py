@@ -35,7 +35,7 @@ def process_token_list(token_list, NT):
             features.extend(list(tup))
         idx = 0 if NT else 1
         label = [segment[-1][idx]]
-        segments.append(([features, label], i)
+        segments.append(([features, label], i))
     return np.random.choice(segments, 1)
 
 def read_json(infile, reduced=False, num_examples=None):
