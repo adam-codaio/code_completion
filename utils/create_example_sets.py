@@ -15,7 +15,7 @@ UNK = "<UNK>"
 class Config(object):
     data_path = './data'
     segment_size = 50
-    test_file = 'programs_eval_examples.json'
+    test_file = 'programs_test.json'
     tok2id_file = 'pickles/tok2id.pickle'
     id2tok_file = 'pickles/id2tok.pickle'
     embeddings_file = 'pickles/wordVectors.pickle'
