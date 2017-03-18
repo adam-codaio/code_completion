@@ -66,8 +66,11 @@ def read_json(infile, reduced=False, num_examples=None):
                 print num_examples
             if rand_samples_count >= 10:
                 break
-	    if len(line) > 500: continue
-            if np.random.rand(0,1) < .5:
+	    if len(line) > 500:
+		continue
+	    else:
+		print "small file found"
+            if np.random.uniform(0,1) < .5:
 		print "ex #: ", rand_samples_count
 		rand_samples_count += 1
                 data = json.loads(line)
