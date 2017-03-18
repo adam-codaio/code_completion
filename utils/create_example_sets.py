@@ -53,7 +53,8 @@ def read_json(infile, reduced=False, num_examples=None):
             num_examples += 1
             if num_examples % 1000 == 0:
                 print num_examples
-            if rand_samples_count >= 10: break
+            if rand_samples_count >= 10:
+                break
             if np.random.rand(0,1) < .5:
                 data = json.loads(line)
                 binarized = ast_to_lcrs(data)
@@ -81,7 +82,7 @@ def vectorize_set(dataset, tok2id, path):
 
 def test_set(tok2id):
     print "reading the test set"
-    test_set_nt, test_set_t = read_json('../data/programs_eval_examples.json')
+    test_set_nt, test_set_t, ast = read_json('../data/programs_eval_examples.json')
     print "read the test set"
 
     vectorize_set(test_set_nt, tok2id, 'test_nt')
