@@ -85,8 +85,13 @@ def test_set(tok2id):
     test_set_nt, test_set_t, ast = read_json('../data/programs_eval_examples.json')
     print "read the test set"
 
-    vectorize_set(test_set_nt, tok2id, 'test_nt')
-    vectorize_set(test_set_t, tok2id, 'test_t')
+    vectorize_set(test_set_nt, tok2id, 'eval_example_nt')
+    vectorize_set(test_set_t, tok2id, 'eval_example_t')
+
+    print "saving asts"
+    with open('../data/eval_example_ast.txt', 'w') as f:
+        json.dump(ast, f)
+    print "wrote ast to the ../data/eval_example_ast.txt set"
 
 def main():
     print "fetching the tok2id"
