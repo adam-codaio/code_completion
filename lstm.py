@@ -64,16 +64,16 @@ class Config:
 	self.clip_gradients = args.clip
 
         if "dropout" in args:
-            self.dropout = args.dropout
+            self.dropout = float(args.dropout)
 
         if "epoch" in args:
-            self.n_epochs = args.epoch
+            self.n_epochs = int(args.epoch)
 
         if "batch_size" in args:
-            self.batch_size = args.batch_size
+            self.batch_size = int(args.batch_size)
 
         if "learning_rate" in args:
-            self.lr = args.learning_rate
+            self.lr = float(args.learning_rate)
 
         if "output_path" in args:
             # Where to save things.
