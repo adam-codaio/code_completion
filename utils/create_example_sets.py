@@ -20,6 +20,18 @@ class Config(object):
     id2tok_file = 'pickles/id2tok.pickle'
     embeddings_file = 'pickles/wordVectors.pickle'
 
+def vectorize(examples, tok2id):
+    vec_examples = []
+    num_examples = 0
+    for ex in examples:
+        num_examples += 1
+        if num_examples % 1000 == 0:
+            print num_examples
+        vec_features = [tok2id.get(feature, tok2id[UNK]) for feature in ex[0]]
+        vec_label = [tok2id.get(ex[1][0], tok2id[UNK])]
+        vec_examples.append([vec_features, vec_label])
+    return vec_examples
+
 def process_token_list(token_list, NT):
     '''
     Takes the token_list and separates it into features and label for each
