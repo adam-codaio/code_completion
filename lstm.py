@@ -43,7 +43,7 @@ class Config:
     dropout = 0.5
     embed_size = 50
     hidden_size = embed_size
-    batch_size = 200
+    batch_size = 800
     n_epochs = 12
     max_grad_norm = 5.
     lr = 0.001
@@ -551,7 +551,7 @@ if __name__ == "__main__":
     command_parser = subparsers.add_parser('evaluate', help='')
     command_parser.add_argument('-m', '--model-path', help="Training data")
     command_parser.add_argument('-d', '--data-path', choices=["data/test_nt_vectorized.txt", "data/test_t_vectorized.txt"], default="data/test_nt_vectorized.txt", help="Evaluation data")
-    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum"], default="lstm", help="Type of RNN cell to use.")
+    command_parser.add_argument('-c', '--cell', choices=["lstm", "lstmAend", "lstmAcont", "lstmAsum", "lstmAsum_fn"], default="lstm", help="Type of RNN cell to use.")
     command_parser.add_argument('-o', '--output', type=argparse.FileType('w'), default=sys.stdout, help="Training data")
     command_parser.add_argument('-nt', '--non-terminal', choices=["terminal", "non_terminal"], default="non_terminal", help="Predict terminal or non_terminal")
     command_parser.add_argument('-cp', '--clip', choices=["clip", "no_clip"], default="clip", help="clip gradients")
