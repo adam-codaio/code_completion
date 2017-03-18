@@ -82,7 +82,7 @@ def vectorize_set(dataset, tok2id, path):
 
 def test_set(tok2id):
     print "reading the test set"
-    test_set_nt, test_set_t, ast = read_json('../data/programs_eval_examples.json')
+    test_set_nt, test_set_t, ast = read_json('../data/programs_test.json')
     print "read the test set"
 
     vectorize_set(test_set_nt, tok2id, 'eval_example_nt')
