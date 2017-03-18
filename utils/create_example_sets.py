@@ -28,7 +28,6 @@ def process_token_list(token_list, NT):
     token_list = token_list[:-1] # Drop last token which is always Program NT
     segments = []
     for i in xrange(0, len(token_list), config.segment_size):
-        if len(token_list) > 500: continue
         segment = token_list[i:i + config.segment_size]
         features = []
         for tup in segment[:-1]:
@@ -55,7 +54,10 @@ def read_json(infile, reduced=False, num_examples=None):
                 print num_examples
             if rand_samples_count >= 10:
                 break
+	    if len(line) > 500: continue
             if np.random.rand(0,1) < .5:
+		print "ex #: ", rand_samples_count
+		rand_samples_count += 1
                 data = json.loads(line)
                 binarized = ast_to_lcrs(data)
                 token_list = tree_traversal(binarized)
