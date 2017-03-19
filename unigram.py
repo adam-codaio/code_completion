@@ -45,23 +45,6 @@ def vectorize(examples, tok2id):
         vec_examples.append([vec_features, vec_label])
     return vec_examples
 
-def process_token_list(token_list, NT):
-    '''
-    Takes the token_list and separates it into features and label for each
-    segment.
-    '''
-    token_list = token_list[:-1] # Drop last token which is always Program NT
-    segments = []
-    for i in xrange(0, len(token_list), config.segment_size):
-        segment = token_list[i:i + config.segment_size]
-        features = []
-        for tup in :
-            features.extend(list(tup))
-        idx = 0 if NT else 1
-        label = [segment[-1][idx]]
-        segments.append([features, label])
-    return segments
-
 def count_line(token_list):
     '''
     Takes the token_list and separates it into features and label for each
