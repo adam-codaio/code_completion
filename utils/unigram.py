@@ -84,6 +84,7 @@ def get_counts(infile, reduced=False, num_examples=None):
                 num_examples -= 1
                 if num_examples == 0:
                     break
+                    
     return np.array(counts), np.array(labels)
 
 def score_and_train(counts, labels):
