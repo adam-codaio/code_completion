@@ -130,9 +130,9 @@ class SequenceModel(Model):
         best_score = 0.
 
         term = "terminal" if self.config.terminal_pred else "non_terminal"
-        unk = "unk" if self.config.unk else "no_unk"
         with open(self.config.results, 'w') as f:
-            f.write("Running %s experiment with %s and %s\n" % (self.config.lstm, term, unk))
+            f.write("Running %s experiment with %s, lr:%.3f, bs:%d, dropout: %.2f\n" % 
+                   (self.config.lstm, term, self.config.lr, self.config.batch_size, self.config.dropout))
 
         for epoch in range(self.config.n_epochs):
             logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)

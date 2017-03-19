@@ -1,6 +1,7 @@
 data/
 *.pyc
 results/
+results_grid/
 .env/
 *.pickle
 glove/

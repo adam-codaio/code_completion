@@ -55,7 +55,7 @@ class Config:
     test_nt = 'data/test_nt_vectorized.txt'
     test_t = 'data/test_t_vectorized.txt'
     eval_size = 1011652
-    eval_batch_size = 50000
+    eval_batch_size = 25000
 
     def __init__(self, args):
         self.cell = args.cell
