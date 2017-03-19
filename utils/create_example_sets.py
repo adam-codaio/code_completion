@@ -25,6 +25,7 @@ config = Config()
 def vectorize(examples, tok2id):
     vec_examples = []
     num_examples = 0
+
     for ex in examples:
         num_examples += 1
         if num_examples % 1000 == 0:
@@ -48,8 +49,9 @@ def process_token_list(token_list, NT):
             features.extend(list(tup))
         idx = 0 if NT else 1
         label = [segment[-1][idx]]
-        segments.append(([features, label], i))
-    return np.random.choice(segments, 1)
+        segments.append(([features, label], i)) #add index where segment starts
+    segChoice = np.random.randint(0, len(segments))
+    return ([segments[segChoice][0]], segments[segChoice][1])
 
 def read_json(infile, reduced=False, num_examples=None):
     '''
@@ -78,11 +80,11 @@ def read_json(infile, reduced=False, num_examples=None):
                 data = json.loads(line)
                 binarized = ast_to_lcrs(data)
                 token_list = tree_traversal(binarized)
-                segments_nt = process_token_list(token_list, True)
-                segments_t = process_token_list(token_list, False)
-                examples_nt.extend(segments_nt)
+                segments_nt, nt_idx = process_token_list(token_list, True)
+                segments_t, t_idx = process_token_list(token_list, False)
+		examples_nt.extend(segments_nt)
                 examples_t.extend(segments_t)
-                full_ast.append(line)
+                full_ast.append((line, nt_idx, t_idx))
                 if reduced:
                     num_examples -= 1
                     if num_examples == 0:
