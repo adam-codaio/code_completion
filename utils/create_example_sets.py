@@ -22,17 +22,25 @@ class Config(object):
 
 config = Config()
 
-def vectorize(examples, tok2id):
+def vectorize(examples, tok2id, ast):
     vec_examples = []
     num_examples = 0
-
+    count = 0
     for ex in examples:
         num_examples += 1
         if num_examples % 1000 == 0:
             print num_examples
         vec_features = [tok2id.get(feature, tok2id[UNK]) for feature in ex[0]]
         vec_label = [tok2id.get(ex[1][0], tok2id[UNK])]
-        vec_examples.append([vec_features, vec_label])
+	'''
+	if tok2id.get(ex[1][0]) is not None:
+	    print "Label: ", ex[1][0]
+	    print "Vect Label: ", tok2id.get(ex[1][0])
+	    print "FOUND A NON UNK TOKEN: ", [vec_features, vec_label]
+	    print "CORRESPONDING AST: ", ast[count] 
+        '''
+	vec_examples.append([vec_features, vec_label])
+	count += 1
     return vec_examples
 
 def process_token_list(token_list, NT):
@@ -68,13 +76,11 @@ def read_json(infile, reduced=False, num_examples=None):
             num_examples += 1
             if num_examples % 1000 == 0:
                 print num_examples
-            if rand_samples_count >= 10:
+            if rand_samples_count >= 50:
                 break
 	    if len(line) > 500:
 		continue
-	    else:
-		print "small file found"
-            if np.random.uniform(0,1) < .5:
+            if np.random.uniform(0,1) < .2:
 		print "ex #: ", rand_samples_count
 		rand_samples_count += 1
                 data = json.loads(line)
@@ -92,9 +98,9 @@ def read_json(infile, reduced=False, num_examples=None):
 
     return examples_nt, examples_t, full_ast
 
-def vectorize_set(dataset, tok2id, path):
+def vectorize_set(dataset, tok2id, path, ast):
     print "about to vectorize the %s set" % path
-    vectorized_dataset = vectorize(dataset, tok2id)
+    vectorized_dataset = vectorize(dataset, tok2id, ast)
     print "vectorized the %s set" % path
     with open('../data/' + path + '_vectorized.txt', 'w') as f:
         for data in vectorized_dataset:
@@ -106,14 +112,21 @@ def test_set(tok2id):
     test_set_nt, test_set_t, ast = read_json('../data/programs_test.json')
     print "read the test set"
 
-    vectorize_set(test_set_nt, tok2id, 'eval_example_nt')
-    vectorize_set(test_set_t, tok2id, 'eval_example_t')
+    print "saving asts"
+    with open('../data/eval_example_ast.txt', 'w') as f:
+        for data in ast:
+	    f.write(repr(data) + '\n')
+	#json.dump(ast, f)
+    print "wrote ast to the ../data/eval_example_ast.txt set"
 
+    vectorize_set(test_set_nt, tok2id, 'eval_example_nt', ast)
+    vectorize_set(test_set_t, tok2id, 'eval_example_t', ast)
+    '''
     print "saving asts"
     with open('../data/eval_example_ast.txt', 'w') as f:
         json.dump(ast, f)
     print "wrote ast to the ../data/eval_example_ast.txt set"
-
+    '''
 def main():
     print "fetching the tok2id"
     with open('../data/pickles/tok2id.pickle', 'rb') as f:

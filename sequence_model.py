@@ -88,7 +88,7 @@ class SequenceModel(Model):
         prog = Progbar(target=1 + int(size / self.config.eval_batch_size))
 	with open (input_file, 'r') as f:
 	    i = 0
-            num_examples = size
+            num_examples = 50 #size
 	    while num_examples > 0:
 		if num_examples - self.config.eval_batch_size > 0:
 		    next_batch = self.config.eval_batch_size
@@ -103,11 +103,13 @@ class SequenceModel(Model):
                 num_examples -= next_batch
                 # Ignore predict
                 offset = self.config.terminal_vocab if not self.config.terminal_pred else 0
-                gold_values = [val - offset for label in batch[1] for val in label]
-                batch = batch[:1] + batch[2:]
+		gold_values = [val - offset for label in batch[1] for val in label]
+		batch = batch[:1] + batch[2:]
             	preds_ = self.predict_on_batch(sess, *batch)
 
                 for label, label_ in zip(gold_values, preds_):
+		    print "predicting.... ", label_
+		    print "true.... ", label
                     wiggle_comp = 0
                     if not self.config.terminal_pred:
                         if self.helper.id2tok[label + offset][0] == self.helper.id2tok[label_ + offset][0]:
@@ -123,7 +125,10 @@ class SequenceModel(Model):
                         total_preds += 1
                 
                 prog.update(i + 1, [])
-
+	print "wiggle preds: ", wiggle_preds
+	print "total preds: ", total_preds
+	print "correct_preds: ", correct_preds
+	print "total_preds: ", total_preds
         return wiggle_preds / total_preds, correct_preds / total_preds
 
     def fit(self, sess, saver, train_file, eval_file):
