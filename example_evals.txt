@@ -1,0 +1,38 @@
+Example Evaluations
+
+****************************************************************************************************
+1. LSTM Sum Function - Non Terminal - Correctly Classified
+
+Line 23 - Vector: [[50025, 15749, 50021, 50000, 50169, 6, 50165, 15749], [50033]]
+
+Line 23 - AST: ('[ { "id":0, "type":"Program", "children":[1] }, { "id":1, "type":"VariableDeclaration", "children":[2] }, { "id":2, "type":"VariableDeclarator", "value":"neo4j", "children":[3] }, { "id":3, "type":"LogicalExpression", "value":"||", "children":[4,5] }, { "id":4, "type":"Identifier", "value":"neo4j" }, { "id":5, "type":"ObjectExpression" }, 0]\n', 0, 0)
+
+Notes: 50033 seems to be one of the types that is often correctly classified for short programs
+
+
+
+****************************************************************************************************
+2. LSTM Sum Function - Non Terminal - Incorrectly Classified
+Line 1 - Vector: [[50027, 77, 50115, 70, 50117, 50000, 50153, 50000, 50061, 50000, 50085, 50000], [50009]]
+
+Our Prediction: 50025
+
+Line 1 - AST: ('[ { "id":0, "type":"Program", "children":[1] }, { "id":1, "type":"ExpressionStatement", "children":[2] }, { "id":2, "type":"AssignmentExpression", "children":[3,6] }, { "id":3, "type":"MemberExpression", "children":[4,5] }, { "id":4, "type":"Identifier", "value":"module" }, { "id":5, "type":"Property", "value":"exports" }, { "id":6, "type":"ArrayExpression", "children":[7] }, { "id":7, "type":"LiteralNumber", "value":"8237" }, 0]\n', 0, 0)
+
+Notes: We commonly predict what is actually 50009 to be 50025
+
+
+
+****************************************************************************************************
+3. Vanilla LSTM - Non Terminal - Incorrect Classified (Same as Ex #1, but Regular LSTM Failed)
+
+Line 23 - Vector: [[50025, 15749, 50021, 50000, 50169, 6, 50165, 15749], [50033]]
+
+Our Prediction: 50025
+
+Line 23 - AST: ('[ { "id":0, "type":"Program", "children":[1] }, { "id":1, "type":"VariableDeclaration", "children":[2] }, { "id":2, "type":"VariableDeclarator", "value":"neo4j", "children":[3] }, { "id":3, "type":"LogicalExpression", "value":"||", "children":[4,5] }, { "id":4, "type":"Identifier", "value":"neo4j" }, { "id":5, "type":"ObjectExpression" }, 0]\n', 0, 0)
+
+Notes: We commonly predict 50025 - only with Vanilla LSTM it becomes an even more common prediction. 
+
+
+
