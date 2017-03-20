@@ -84,7 +84,7 @@ def get_counts(infile, reduced=False, num_examples=None):
                 num_examples -= 1
                 if num_examples == 0:
                     break
-                    
+
     return np.array(counts), np.array(labels)
 
 def score_and_train(counts, labels):
@@ -94,7 +94,7 @@ def score_and_train(counts, labels):
     return transformer, clf
 
 def predict(transfomer, classifier, test_input):
-    test_tfidf = transformer.transfomr(test_input)
+    test_tfidf = transformer.transform(test_input)
     predictions = classifier.predict(test_tfidf)
     return predicitons
 
