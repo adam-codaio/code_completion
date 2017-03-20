@@ -15,11 +15,11 @@ dependency parser
 UNK = "<UNK>"
 
 class Config(object):
-    data_path = './data'
+    data_path = './../data'
     segment_size = 50
-    train_file = 'programs_training.json'
-    dev_file = 'programs_dev.json'
-    test_file = 'programs_test.json'
+    train_file = '../data/programs_training.json'
+    dev_file = '../data/programs_dev.json'
+    test_file = '../data/programs_test.json'
     tok2id_file = 'pickles/tok2id.pickle'
     id2tok_file = 'pickles/id2tok.pickle'
     embeddings_file = 'pickles/wordVectors.pickle'
